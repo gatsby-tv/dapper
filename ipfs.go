@@ -18,14 +18,10 @@ import (
 	"github.com/ipfs/go-ipfs/plugin/loader"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
 	icore "github.com/ipfs/interface-go-ipfs-core"
-	metrics "github.com/libp2p/go-libp2p-core/metrics"
 	"github.com/libp2p/go-libp2p-core/peer"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	ma "github.com/multiformats/go-multiaddr"
 )
-
-// Reporter of traffic data for the running IPFS node
-var Reporter *metrics.BandwidthCounter
 
 var ipfs icore.CoreAPI
 
@@ -94,8 +90,6 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	Reporter = node.Reporter
 
 	return coreapi.NewCoreAPI(node)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/spf13/viper"
 )
@@ -18,6 +19,8 @@ const ConfigFileName = "configuration"
 const ConfigFileExtension = "toml"
 
 func main() {
+	readConfigFile()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -29,7 +32,7 @@ func main() {
 		panic(fmt.Errorf("Failed to start IPFS: %s", err))
 	}
 
-	convertToHLS("/home/nesbitt/Videos/test.mp4")
+	convertToHLS(os.Args[1])
 }
 
 func readConfigFile() {

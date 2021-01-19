@@ -233,14 +233,12 @@ func addFileToIPFS(ctx context.Context, path string) (string, error) {
 
 func startIPFS(ctx context.Context) error {
 	// TODO: Switch to default path after creating verification/creation of default repo
-	/*
-	 * // Spawn a node using the default path (~/.ipfs), assuming that a repo exists there already
-	 *
-	 * ipfs, err := spawnDefault(ctx)
-	 * if err != nil {
-	 *   return nil, err
-	 * }
-	 */
+
+	// Spawn a node using the default path (~/.ipfs), assuming that a repo exists there already
+	// ipfs, err := spawnDefault(ctx)
+	// if err != nil {
+	//   return nil, err
+	// }
 
 	// Spawn a node using a temporary path, creating a temporary repo for the run
 	fmt.Println("Spawning node on a temporary repo")
@@ -275,9 +273,6 @@ func startIPFS(ctx context.Context) error {
 		// You can add more nodes here, for example, another IPFS node you might have running locally, mine was:
 		// "/ip4/127.0.0.1/tcp/4010/p2p/QmZp2fhDLxjYue2RiUvLwT9MWdnbDxam32qYFnGmxZDh5L",
 		// "/ip4/127.0.0.1/udp/4010/quic/p2p/QmZp2fhDLxjYue2RiUvLwT9MWdnbDxam32qYFnGmxZDh5L",
-		// TODO: Only used for testing
-		"/ip4/127.0.0.1/tcp/4001/QmcMnZasbdoocZUxutYw8D2qhuZV3QEdw2LnFci1e2rBJq",
-		"/ip4/127.0.0.1/tcp/4001/quic/QmcMnZasbdoocZUxutYw8D2qhuZV3QEdw2LnFci1e2rBJq",
 	}
 
 	go connectToPeers(ctx, ipfsTmp, bootstrapNodes)

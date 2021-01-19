@@ -3,10 +3,19 @@ package main
 import (
 	"context"
 	"fmt"
-	// This package is needed so that all the preloaded plugins are loaded automatically
+	"log"
+
+	"github.com/spf13/viper"
 )
 
-// f"ffmpeg -i \"{video}\" -profile:v baseline -level 3.0 -s 1920x1080 -start_number 0 -hls_time {HLS_CHUNK_LENGTH} -hls_list_size 0 -f hls \"{video_folder}/master.m3u8\""
+// ConfigFileLocation - Folder to search for config file
+const ConfigFileLocation = "."
+
+// ConfigFileName - Name of config file (without extension)
+const ConfigFileName = "configuration"
+
+// ConfigFileExtension - Type of config file
+const ConfigFileExtension = "toml"
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -18,5 +27,17 @@ func main() {
 
 	if err != nil {
 		panic(fmt.Errorf("Failed to start IPFS: %s", err))
+	}
+
+	convertToHLS("/home/nesbitt/Videos/test.mp4")
+}
+
+func readConfigFile() {
+	viper.SetConfigName(ConfigFileName)
+	viper.SetConfigType(ConfigFileExtension)
+	viper.AddConfigPath(ConfigFileLocation)
+	err := viper.ReadInConfig()
+	if err != nil {
+		log.Fatal(err)
 	}
 }

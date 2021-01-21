@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -14,13 +13,13 @@ import (
 // HLSChunkLength - Size of HLS pieces in seconds
 const HLSChunkLength = 10
 
-func convertToHLS(videoFile string) string {
+func convertToHLS(videoFile string) (string, error) {
 	videoFolder := path.Join(viper.GetString("videoStorageFolder"), uuid.New().String())
 
 	// TODO: Use proper FileMode
 	err := os.Mkdir(videoFolder, 0755)
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 	cmd := exec.Command(viper.GetString("ffmpegDir"), "-i", videoFile, "-profile:v", "baseline", "-level", "3.0", "-s", "1920x1080", "-start_number", "0", "-hls_time", fmt.Sprint(HLSChunkLength), "-hls_list_size", "0", "-f", "hls", path.Join(videoFolder, "/master.m3u8"))
 
@@ -28,8 +27,8 @@ func convertToHLS(videoFile string) string {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Println(string(out))
-		log.Fatal(err)
+		return "", err
 	}
 
-	return videoFolder
+	return videoFolder, nil
 }

@@ -33,6 +33,9 @@ func main() {
 	}
 
 	convertToHLS(os.Args[1])
+
+	fmt.Println("\nReady for requests")
+	testRest()
 }
 
 func readConfigFile() {

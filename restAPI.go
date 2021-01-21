@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -11,25 +12,38 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type videoData struct {
+type newVideoRequestBody struct {
 	Title         string `json:"Title"`
 	Description   string `json:"Description"`
-	Tags          string `json:"Tags"`
 	VideoFile     string `json:"VideoFile"`
 	ThumbnailFile string `json:"ThumbnailFile"`
 	Channel       string `json:"Channel"`
 	Show          string `json:"Show"`
 }
 
-func handleRequests() {
+type westeggNewVideoRequestBody struct {
+	Token      string `json:"token"`
+	Title      string `json:"title"`
+	Desc       string `json:"description"`
+	VidHash    string `json:"hash"`
+	ThumbHash  string `json:"thumbnailHash"`
+	Channel    string `json:"channel"`
+	Uploadable string `json:"uploadable"`
+}
+
+var authToken string
+
+func handleRequests(token string) {
+	authToken = token
+
 	myRouter := mux.NewRouter().StrictSlash(true)
 
 	// GETs
 	myRouter.HandleFunc("/", homePage)
-	myRouter.HandleFunc("/traffic", getCurrentOutTraffic)
+	myRouter.HandleFunc("/traffic", getCurrentOutTraffic).Methods("GET")
 
 	// POSTs
-	myRouter.HandleFunc("/video/new", uploadVideo).Methods("POST")
+	myRouter.HandleFunc("/video", uploadVideo).Methods("POST")
 
 	log.Fatal(http.ListenAndServe(":10000", myRouter))
 }
@@ -44,7 +58,7 @@ func getCurrentOutTraffic(w http.ResponseWriter, r *http.Request) {
 
 func uploadVideo(w http.ResponseWriter, r *http.Request) {
 	reqBody, _ := ioutil.ReadAll(r.Body)
-	var video videoData
+	var video newVideoRequestBody
 	err := json.Unmarshal(reqBody, &video)
 	if err != nil {
 		fmt.Fprintf(w, "Unable to unmarshal json body: %s", err)
@@ -81,19 +95,43 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var newVideo videoData = videoData{
-		Title:         video.Title,
-		Description:   video.Description,
-		Tags:          video.Tags,
-		VideoFile:     videoCID,
-		ThumbnailFile: thumbnailCID,
-		Channel:       video.Channel,
-		Show:          video.Show,
+	newVideo := westeggNewVideoRequestBody{
+		Token:      authToken,
+		Title:      video.Title,
+		Desc:       video.Description,
+		VidHash:    videoCID,
+		ThumbHash:  thumbnailCID,
+		Channel:    video.Channel,
+		Uploadable: video.Show,
 	}
 
-	json.NewEncoder(w).Encode(newVideo)
+	body, err := json.Marshal(newVideo)
+
+	client := http.Client{}
+	req, err := http.NewRequest(http.MethodPost, "https://api.gatsby.sh/video", bytes.NewBuffer(body))
+
+	if err != nil {
+		panic(err)
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+
+	if err != nil {
+		panic(err)
+	}
+
+	if resp.StatusCode != 200 {
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Fprintf(w, "Failed to send to westegg: %s", string(body))
+	}
 }
 
-func testRest() {
-	handleRequests()
+func testRest(authToken string) {
+	handleRequests(authToken)
 }

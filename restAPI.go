@@ -27,7 +27,7 @@ type westeggNewVideoRequestBody struct {
 	Desc       string `json:"description"`
 	VidHash    string `json:"hash"`
 	ThumbHash  string `json:"thumbnailHash"`
-	Channel    string `json:"channel"`
+	Channel    string `json:"id"`
 	Uploadable string `json:"uploadable"`
 }
 
@@ -115,6 +115,7 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Bearer "+authToken)
 
 	resp, err := client.Do(req)
 
@@ -122,7 +123,7 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode < 200 && resp.StatusCode >= 300 {
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {

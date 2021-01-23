@@ -78,7 +78,19 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 	// Open the repo
 	repo, err := fsrepo.Open(repoPath)
 	if err != nil {
-		return nil, err
+		// Create a config with default options and a 2048 bit key
+		cfg, err := config.Init(ioutil.Discard, 2048)
+		if err != nil {
+			return nil, err
+		}
+		err = fsrepo.Init(repoPath, cfg)
+		if err != nil {
+			return nil, err
+		}
+		repo, err = fsrepo.Open(repoPath)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Construct the node
@@ -241,17 +253,17 @@ func startIPFS(ctx context.Context) error {
 	// TODO: Switch to default path after creating verification/creation of default repo
 
 	// Spawn a node using the default path (~/.ipfs), assuming that a repo exists there already
-	// ipfs, err := spawnDefault(ctx)
-	// if err != nil {
-	//   return nil, err
-	// }
-
-	// Spawn a node using a temporary path, creating a temporary repo for the run
-	fmt.Println("Spawning node on a temporary repo")
-	ipfsTmp, err := spawnEphemeral(ctx)
+	ipfsTmp, err := spawnDefault(ctx)
 	if err != nil {
 		return err
 	}
+
+	// Spawn a node using a temporary path, creating a temporary repo for the run
+	// fmt.Println("Spawning node on a temporary repo")
+	// ipfsTmp, err := spawnEphemeral(ctx)
+	// if err != nil {
+	// 	return err
+	// }
 
 	// TODO: Remove at some point
 	fmt.Println("IPFS node is running")

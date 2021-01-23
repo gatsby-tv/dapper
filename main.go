@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -82,6 +83,14 @@ func getAuthToken() string {
 	}
 
 	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Failed to send to westegg: %s", string(body))
+	}
 
 	var res loginResponse
 

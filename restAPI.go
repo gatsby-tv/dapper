@@ -132,7 +132,3 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Failed to send to westegg: %s", string(body))
 	}
 }
-
-func testRest(authToken string) {
-	handleRequests(authToken)
-}

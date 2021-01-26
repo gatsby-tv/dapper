@@ -7,6 +7,7 @@ require (
 	github.com/google/uuid v1.1.5
 	github.com/gorilla/mux v1.8.0
 	github.com/ipfs/go-ipfs v0.7.0
+	github.com/ipfs/go-ipfs-cmds v0.4.0
 	github.com/ipfs/go-ipfs-config v0.9.0
 	github.com/ipfs/go-ipfs-files v0.0.8
 	github.com/ipfs/interface-go-ipfs-core v0.4.0

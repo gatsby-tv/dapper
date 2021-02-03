@@ -22,11 +22,13 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	peerstore "github.com/libp2p/go-libp2p-peerstore"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/spf13/viper"
 )
 
 // Reporter of traffic data for the running IPFS node
 var Reporter *metrics.BandwidthCounter
 
+// IPFS node object
 var ipfs icore.CoreAPI
 
 // *** Functions from go-ipfs/docs/examples/go-ipfs-as-a-library ***
@@ -48,27 +50,6 @@ func setupPlugins(externalPluginsPath string) error {
 	}
 
 	return nil
-}
-
-func createTempRepo(ctx context.Context) (string, error) {
-	repoPath, err := ioutil.TempDir("", "ipfs-shell")
-	if err != nil {
-		return "", fmt.Errorf("failed to get temp dir: %s", err)
-	}
-
-	// Create a config with default options and a 2048 bit key
-	cfg, err := config.Init(ioutil.Discard, 2048)
-	if err != nil {
-		return "", err
-	}
-
-	// Create the repo with the config
-	err = fsrepo.Init(repoPath, cfg)
-	if err != nil {
-		return "", fmt.Errorf("failed to init ephemeral node: %s", err)
-	}
-
-	return repoPath, nil
 }
 
 /// ------ Spawning the node
@@ -113,30 +94,16 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 }
 
 func spawnDefault(ctx context.Context) (icore.CoreAPI, error) {
-	defaultPath, err := config.PathRoot()
-	if err != nil {
-		// Shouldn't be possible
+	var ipfsRepoPath string
+	if ipfsRepoPath = viper.GetString("ipfsDir"); ipfsRepoPath == "" {
+		ipfsRepoPath, _ = config.PathRoot()
+	}
+
+	if err := setupPlugins(ipfsRepoPath); err != nil {
 		return nil, err
 	}
 
-	if err := setupPlugins(defaultPath); err != nil {
-		return nil, err
-	}
-
-	return createNode(ctx, defaultPath)
-}
-
-func spawnEphemeral(ctx context.Context) (icore.CoreAPI, error) {
-	if err := setupPlugins(""); err != nil {
-		return nil, err
-	}
-	repoPath, err := createTempRepo(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp repo: %s", err)
-	}
-
-	// Spawning ephemeral IPFS node
-	return createNode(ctx, repoPath)
+	return createNode(ctx, ipfsRepoPath)
 }
 
 func connectToPeers(ctx context.Context, ipfs icore.CoreAPI, peers []string) error {

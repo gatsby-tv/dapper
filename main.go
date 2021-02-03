@@ -12,6 +12,7 @@ import (
 
 	cmds "github.com/ipfs/go-ipfs-cmds"
 	"github.com/ipfs/go-ipfs-cmds/cli"
+	"github.com/pelletier/go-toml"
 	"github.com/spf13/viper"
 )
 
@@ -33,6 +34,12 @@ const ConfigFileName = "configuration"
 // ConfigFileExtension - Type of config file
 const ConfigFileExtension = "toml"
 
+// WesteggHost is the location to sent requests to westegg (eg. https://api.gatsby.sh)
+var WesteggHost string
+
+// DevMode changes the logic of some sections to corrospond with westegg's dev mode
+var DevMode bool
+
 var rootCmd = &cmds.Command{
 	Options: []cmds.Option{
 		cmds.BoolOption(cmds.OptLongHelp, "Show the full command help text."),
@@ -48,29 +55,31 @@ var rootCmd = &cmds.Command{
 					return nil
 				}
 
-				return err
+				return nil
 			},
 		},
 		"upload": &cmds.Command{
-			// Arguments: []cmds.Argument{
-			// 	cmds.StringArg("video", false, false, "Video file to upload"),
-			// 	cmds.StringArg("description", false, false, "Description of the video"),
-			// 	cmds.StringArg("title", false, false, "Title of the video"),
-			// 	cmds.StringArg("thumbnail", false, false, "Thumbnail for the video"),
-			// 	cmds.StringArg("channel", false, false, "Channel to upload video to"),
-			// 	cmds.StringArg("Uploadable", false, false, "Ignore"),
-			// },
+			Arguments: []cmds.Argument{
+				cmds.StringArg("video data", false, false, "TOML file containing information about video to upload"),
+			},
 			Run: func(r *cmds.Request, re cmds.ResponseEmitter, e cmds.Environment) error {
-				err := cli.HandleHelp("dapper", r, os.Stdout)
-				if err == cli.ErrNoHelpRequested {
-					//TODO: Get data from user
+				helpErr := cli.HandleHelp("dapper", r, os.Stdout)
+				if helpErr == cli.ErrNoHelpRequested {
+					if len(r.Arguments) == 0 {
+						return re.Emit("Missing `video data` argument!\nDo `dapper upload --help` to see usage.")
+					}
+					if _, err := os.Stat(r.Arguments[0]); err != nil {
+						return err
+					}
+
+					videoData, err := toml.LoadFile(r.Arguments[0])
+
 					newVideo := newVideoRequestBody{
-						Title:         r.Arguments[0],
-						Description:   r.Arguments[0],
-						VideoFile:     r.Arguments[0],
-						ThumbnailFile: r.Arguments[0],
-						Channel:       r.Arguments[0],
-						Show:          r.Arguments[0],
+						Title:         videoData.Get("Title").(string),
+						Description:   videoData.Get("Description").(string),
+						VideoFile:     videoData.Get("VideoFile").(string),
+						ThumbnailFile: videoData.Get("ThumbnailFile").(string),
+						Channel:       videoData.Get("Channel").(string),
 					}
 
 					body, err := json.Marshal(newVideo)
@@ -78,35 +87,34 @@ var rootCmd = &cmds.Command{
 						return err
 					}
 
-					return re.Emit(fmt.Sprintf("Failed to send to dapper: %s", string(body)))
+					client := http.Client{}
+					req, err := http.NewRequest(http.MethodPost, "http://localhost:10000/video", bytes.NewBuffer(body))
 
-					// client := http.Client{}
-					// req, err := http.NewRequest(http.MethodPost, "localhost:10000/video", bytes.NewBuffer(body))
+					if err != nil {
+						return err
+					}
 
-					// if err != nil {
-					// 	return err
-					// }
+					req.Header.Add("Content-Type", "application/json")
 
-					// req.Header.Add("Content-Type", "application/json")
-					// req.Header.Add("Authorization", "Bearer "+authToken)
+					resp, err := client.Do(req)
 
-					// resp, err := client.Do(req)
+					if err != nil {
+						return err
+					}
 
-					// if err != nil {
-					// 	return err
-					// }
+					if resp.StatusCode < 200 && resp.StatusCode >= 300 {
+						defer resp.Body.Close()
+						body, err := ioutil.ReadAll(resp.Body)
+						if err != nil {
+							return err
+						}
+						return re.Emit(fmt.Sprintf("Failed to send to dapper: %s", string(body)))
+					}
 
-					// if resp.StatusCode < 200 && resp.StatusCode >= 300 {
-					// 	defer resp.Body.Close()
-					// 	body, err := ioutil.ReadAll(resp.Body)
-					// 	if err != nil {
-					// 		return err
-					// 	}
-					// 	return re.Emit(fmt.Sprintf("Failed to send to dapper: %s", string(body)))
-					// }
+					return nil
 				}
 
-				return err
+				return nil
 			},
 		},
 	},
@@ -144,7 +152,7 @@ func main() {
 	// parse the command path, arguments and options from the command line
 	req, err := cli.Parse(context.TODO(), os.Args[1:], os.Stdin, rootCmd)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	req.Options["encoding"] = cmds.Text
@@ -152,7 +160,7 @@ func main() {
 	// create an emitter
 	cliRe, err := cli.NewResponseEmitter(os.Stdout, os.Stderr, req)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	wait := make(chan struct{})
@@ -190,20 +198,54 @@ func readConfigFile() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	DevMode = viper.GetBool("DevMode.devMode")
 }
 
 func getAuthToken() string {
+	if DevMode {
+		client := http.Client{}
+		req, err := http.NewRequest(http.MethodGet, WesteggHost+"/v1/auth/devtoken?key=localhost&id="+viper.GetString("DevMode.userID"), nil)
+		if err != nil {
+			panic(err)
+		}
+
+		req.Header.Add("Content-Type", "application/json")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			panic(err)
+		}
+
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Printf("Failed to send to westegg: %s", string(body))
+		}
+
+		var res loginResponse
+
+		json.NewDecoder(resp.Body).Decode(&res)
+
+		return res.Token
+	}
+
+	// TODO: Change to next-auth login
 	data := loginRequestBody{
-		Email:    viper.GetString("userEmail"),
-		Password: viper.GetString("userPassword")}
+		Email:    viper.GetString("LoginInfo.userEmail"),
+		Password: viper.GetString("LoginInfo.userPassword")}
 
 	body, err := json.Marshal(data)
 
 	client := http.Client{}
-	req, err := http.NewRequest(http.MethodPost, "https://api.gatsby.sh/auth/login", bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPost, WesteggHost+"/v1/auth/login", bytes.NewBuffer(body))
 
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	req.Header.Add("Content-Type", "application/json")
@@ -211,7 +253,7 @@ func getAuthToken() string {
 	resp, err := client.Do(req)
 
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	defer resp.Body.Close()
@@ -219,7 +261,7 @@ func getAuthToken() string {
 	if resp.StatusCode != 200 {
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 		fmt.Printf("Failed to send to westegg: %s", string(body))
 	}
@@ -232,6 +274,11 @@ func getAuthToken() string {
 }
 
 func startDaemon() {
+	WesteggHost = viper.GetString("DevMode.westeggHost")
+	if WesteggHost == "" {
+		WesteggHost = "https://api.gatsby.sh"
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -240,7 +287,7 @@ func startDaemon() {
 	err := startIPFS(ctx)
 
 	if err != nil {
-		panic(fmt.Errorf("Failed to start IPFS: %s", err))
+		log.Fatal(fmt.Errorf("Failed to start IPFS: %s", err))
 	}
 
 	authToken := getAuthToken()

@@ -16,4 +16,4 @@ dapper
 # vendor/
 
 # Test config file
-configuration.toml
+*.toml

@@ -102,16 +102,17 @@ var rootCmd = &cmds.Command{
 						return err
 					}
 
-					if resp.StatusCode < 200 && resp.StatusCode >= 300 {
-						defer resp.Body.Close()
-						body, err := ioutil.ReadAll(resp.Body)
-						if err != nil {
-							return err
-						}
+					defer resp.Body.Close()
+					body, err = ioutil.ReadAll(resp.Body)
+					if err != nil {
+						return err
+					}
+
+					if resp.StatusCode >= 400 {
 						return re.Emit(fmt.Sprintf("Failed to send to dapper: %s", string(body)))
 					}
 
-					return nil
+					return re.Emit(fmt.Sprintf("%s", string(body)))
 				}
 
 				return nil
@@ -235,42 +236,43 @@ func getAuthToken() string {
 	}
 
 	// TODO: Change to next-auth login
-	data := loginRequestBody{
-		Email:    viper.GetString("LoginInfo.userEmail"),
-		Password: viper.GetString("LoginInfo.userPassword")}
+	// data := loginRequestBody{
+	// 	Email:    viper.GetString("LoginInfo.userEmail"),
+	// 	Password: viper.GetString("LoginInfo.userPassword")}
 
-	body, err := json.Marshal(data)
+	// body, err := json.Marshal(data)
 
-	client := http.Client{}
-	req, err := http.NewRequest(http.MethodPost, WesteggHost+"/v1/auth/login", bytes.NewBuffer(body))
+	// client := http.Client{}
+	// req, err := http.NewRequest(http.MethodPost, WesteggHost+"/v1/auth/login", bytes.NewBuffer(body))
 
-	if err != nil {
-		log.Fatal(err)
-	}
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
-	req.Header.Add("Content-Type", "application/json")
+	// req.Header.Add("Content-Type", "application/json")
 
-	resp, err := client.Do(req)
+	// resp, err := client.Do(req)
 
-	if err != nil {
-		log.Fatal(err)
-	}
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
-	defer resp.Body.Close()
+	// defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("Failed to send to westegg: %s", string(body))
-	}
+	// if resp.StatusCode != 200 {
+	// 	body, err := ioutil.ReadAll(resp.Body)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// 	fmt.Printf("Failed to send to westegg: %s", string(body))
+	// }
 
-	var res loginResponse
+	// var res loginResponse
 
-	json.NewDecoder(resp.Body).Decode(&res)
+	// json.NewDecoder(resp.Body).Decode(&res)
 
-	return res.Token
+	// return res.Token
+	return ""
 }
 
 func startDaemon() {

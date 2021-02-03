@@ -77,7 +77,7 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 		// Convert video to HLS pieces
 		videoLength, err := getVideoLength(video.VideoFile)
 		if err != nil {
-			fmt.Printf("Unable to convert video to HLS: %s\n", err)
+			fmt.Printf("Unable to get video length: %s\n", err)
 			return
 		}
 		videoFolder, err := convertToHLS(video.VideoFile)
@@ -139,7 +139,7 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if resp.StatusCode >= 400 {
-			fmt.Printf("Failed to send to westegg: %s\n", string(body))
+			fmt.Printf("Error from westegg: %s\n", string(body))
 			return
 		}
 		fmt.Printf("Response from westegg:\n%s\n", string(body))

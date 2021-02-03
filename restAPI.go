@@ -18,17 +18,19 @@ type newVideoRequestBody struct {
 	VideoFile     string `json:"VideoFile"`
 	ThumbnailFile string `json:"ThumbnailFile"`
 	Channel       string `json:"Channel"`
-	Show          string `json:"Show"`
 }
 
 type westeggNewVideoRequestBody struct {
-	Token      string `json:"token"`
-	Title      string `json:"title"`
-	Desc       string `json:"description"`
-	VidHash    string `json:"hash"`
-	ThumbHash  string `json:"thumbnailHash"`
-	Channel    string `json:"id"`
-	Uploadable string `json:"uploadable"`
+	Title     string        `json:"title"`
+	VidLen    int           `json:"duration"`
+	VidHash   string        `json:"content"`
+	Thumbnail thumbnailData `json:"thumbnail"`
+	Channel   string        `json:"channel"`
+}
+
+type thumbnailData struct {
+	ThumbHash string `json:"hash"`
+	MimeType  string `json:"mimeType"`
 }
 
 var authToken string
@@ -73,7 +75,7 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 	// Save video and thumbnail files to disk
 
 	// Convert video to HLS pieces
-	videoFolder, err := convertToHLS(video.VideoFile)
+	videoFolder, videoLength, err := convertToHLS(video.VideoFile)
 	if err != nil {
 		fmt.Fprintf(w, "Unable to convert video to HLS: %s", err)
 		return
@@ -96,19 +98,20 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newVideo := westeggNewVideoRequestBody{
-		Token:      authToken,
-		Title:      video.Title,
-		Desc:       video.Description,
-		VidHash:    videoCID,
-		ThumbHash:  thumbnailCID,
-		Channel:    video.Channel,
-		Uploadable: video.Show,
+		Title:   video.Title,
+		VidLen:  videoLength,
+		VidHash: videoCID,
+		Thumbnail: thumbnailData{
+			ThumbHash: thumbnailCID,
+			MimeType:  "image/jpeg",
+		},
+		Channel: video.Channel,
 	}
 
 	body, err := json.Marshal(newVideo)
 
 	client := http.Client{}
-	req, err := http.NewRequest(http.MethodPost, "https://api.gatsby.sh/video", bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPost, WesteggHost+"/v1/video", bytes.NewBuffer(body))
 
 	if err != nil {
 		panic(err)

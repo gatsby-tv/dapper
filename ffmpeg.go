@@ -34,7 +34,6 @@ func getVideoLength(videoFile string) (videoLength int, err error) {
 	return videoLength, nil
 }
 
-// TODO: Break into separate functions (getVideoLength)
 func convertToHLS(videoFile string) (videoFolder string, err error) {
 	// Create folder to store HLS video in
 	videoFolder = path.Join(viper.GetString("videoStorageFolder"), uuid.New().String())
@@ -45,7 +44,6 @@ func convertToHLS(videoFile string) (videoFolder string, err error) {
 	}
 
 	// Convert video
-	// TODO: Move to separate thread
 	// TODO: Create way of checking status of transcode
 	cmd := exec.Command(viper.GetString("ffmpegDir"), "-i", videoFile, "-profile:v", "baseline", "-level", "3.0", "-s", "1920x1080", "-start_number", "0", "-hls_time", fmt.Sprint(HLSChunkLength), "-hls_list_size", "0", "-f", "hls", path.Join(videoFolder, "/master.m3u8"))
 

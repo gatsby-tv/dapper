@@ -61,8 +61,8 @@ func getCurrentOutTraffic(w http.ResponseWriter, r *http.Request) {
 
 func uploadVideo(w http.ResponseWriter, r *http.Request) {
 	reqBody, _ := ioutil.ReadAll(r.Body)
-	var video newVideoRequestBody
-	err := json.Unmarshal(reqBody, &video)
+	var videoToUpload newVideoRequestBody
+	err := json.Unmarshal(reqBody, &videoToUpload)
 	if err != nil {
 		fmt.Fprintf(w, "Unable to unmarshal json body: %s", err)
 		return
@@ -70,78 +70,80 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprintf(w, "Starting transcode of video file.\n")
 
-	go func() {
-		ctx := context.Background()
-		defer ctx.Done()
+	go asyncVideoUpload(videoToUpload)
+}
 
-		// Convert video to HLS pieces
-		videoLength, err := getVideoLength(video.VideoFile)
-		if err != nil {
-			fmt.Printf("Unable to get video length: %s\n", err)
-			return
-		}
-		videoFolder, err := convertToHLS(video.VideoFile)
-		if err != nil {
-			fmt.Printf("Unable to convert video to HLS: %s\n", err)
-			return
-		}
+func asyncVideoUpload(videoToUpload newVideoRequestBody) {
+	ctx := context.Background()
+	defer ctx.Done()
 
-		// Process data into upload request for WestEgg
+	// Convert video to HLS pieces
+	videoLength, err := getVideoLength(videoToUpload.VideoFile)
+	if err != nil {
+		fmt.Printf("Unable to get video length: %s\n", err)
+		return
+	}
+	videoFolder, err := convertToHLS(videoToUpload.VideoFile)
+	if err != nil {
+		fmt.Printf("Unable to convert video to HLS: %s\n", err)
+		return
+	}
 
-		videoCID, err := addFolderToIPFS(ctx, videoFolder)
-		if err != nil {
-			fmt.Printf("Unable to add video folder to IPFS: %s\n", err)
-			return
-		}
+	// Process data into upload request for WestEgg
 
-		thumbnailCID, err := addFileToIPFS(ctx, video.ThumbnailFile)
-		if err != nil {
-			fmt.Printf("Unable to add thumbnail to IPFS: %s\n", err)
-			return
-		}
+	videoCID, err := addFolderToIPFS(ctx, videoFolder)
+	if err != nil {
+		fmt.Printf("Unable to add video folder to IPFS: %s\n", err)
+		return
+	}
 
-		newVideo := westeggNewVideoRequestBody{
-			Title:   video.Title,
-			VidLen:  videoLength,
-			VidHash: videoCID,
-			Thumbnail: thumbnailData{
-				ThumbHash: thumbnailCID,
-				MimeType:  "image/jpeg",
-			},
-			Channel: video.Channel,
-		}
+	thumbnailCID, err := addFileToIPFS(ctx, videoToUpload.ThumbnailFile)
+	if err != nil {
+		fmt.Printf("Unable to add thumbnail to IPFS: %s\n", err)
+		return
+	}
 
-		body, err := json.Marshal(newVideo)
+	newVideo := westeggNewVideoRequestBody{
+		Title:   videoToUpload.Title,
+		VidLen:  videoLength,
+		VidHash: videoCID,
+		Thumbnail: thumbnailData{
+			ThumbHash: thumbnailCID,
+			MimeType:  "image/jpeg",
+		},
+		Channel: videoToUpload.Channel,
+	}
 
-		client := http.Client{}
-		req, err := http.NewRequest(http.MethodPost, WesteggHost+"/v1/video", bytes.NewBuffer(body))
+	body, err := json.Marshal(newVideo)
 
-		if err != nil {
-			fmt.Printf("Failed creating request for westegg: %s\n", err)
-			return
-		}
+	client := http.Client{}
+	req, err := http.NewRequest(http.MethodPost, WesteggHost+"/v1/video", bytes.NewBuffer(body))
 
-		req.Header.Add("Content-Type", "application/json")
-		req.Header.Add("Authorization", "Bearer "+authToken)
+	if err != nil {
+		fmt.Printf("Failed creating request for westegg: %s\n", err)
+		return
+	}
 
-		resp, err := client.Do(req)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Bearer "+authToken)
 
-		if err != nil {
-			fmt.Printf("Failed sending request to westegg: %s\n", err)
-			return
-		}
+	resp, err := client.Do(req)
 
-		defer resp.Body.Close()
-		body, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Printf("Failed reading body of response: %s\n", err)
-			return
-		}
+	if err != nil {
+		fmt.Printf("Failed sending request to westegg: %s\n", err)
+		return
+	}
 
-		if resp.StatusCode >= 400 {
-			fmt.Printf("Error from westegg: %s\n", string(body))
-			return
-		}
-		fmt.Printf("Response from westegg:\n%s\n", string(body))
-	}()
+	defer resp.Body.Close()
+	body, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("Failed reading body of response: %s\n", err)
+		return
+	}
+
+	if resp.StatusCode >= 400 {
+		fmt.Printf("Error from westegg: %s\n", string(body))
+		return
+	}
+	fmt.Printf("Response from westegg:\n%s\n", string(body))
 }

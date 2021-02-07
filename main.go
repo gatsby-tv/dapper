@@ -15,6 +15,7 @@ import (
 )
 
 // TODO: Token registration/authentication with westegg for publicly accessible dapper nodes.
+// TODO: Upload videos using already existing ipfs node.
 
 type loginRequestBody struct {
 	Email    string `json:"email"`

@@ -1,0 +1,14 @@
+videoStorageFolder = "/home/nesbitt/Videos"
+ffmpegDir = "/usr/bin/ffmpeg"
+ffprobeDir = "/usr/bin/ffprobe"
+ipfsDir = "/home/nesbitt/ipfs"
+
+[LoginInfo]
+userEmail = "nesbitt@gatsby.sh"
+userPassword = "P@ssw0rd"
+
+# Only for development purposes, will NOT work with production westegg
+[DevMode]
+westeggHost = "https://api.gatsby.sh"
+devMode = true
+userID = "601a0a8a9d247cad2f439a91"

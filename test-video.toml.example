@@ -1,0 +1,5 @@
+Title = "Test Video"
+Description = "This is a test video."
+VideoFile = "/home/nesbitt/Videos/Raccoon.mp4"
+ThumbnailFile = "/home/nesbitt/Pictures/test.jpg"
+Channel = "601a0c689d247c58e8439a92"

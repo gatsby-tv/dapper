@@ -5,9 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"path"
+	"path/filepath"
 
 	"github.com/dustin/go-humanize"
 	"github.com/gorilla/mux"
@@ -89,6 +93,13 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody) {
 		return
 	}
 
+	thumbnailFileExtension := filepath.Ext(videoToUpload.ThumbnailFile)
+
+	if err = fileCopy(videoToUpload.ThumbnailFile, path.Join(videoFolder, "thumbnail"+thumbnailFileExtension)); err != nil {
+		fmt.Printf("Unable to copy thumbnail file: %s\n", err)
+		return
+	}
+
 	// Process data into upload request for WestEgg
 
 	videoCID, err := addFolderToIPFS(ctx, videoFolder)
@@ -97,10 +108,10 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody) {
 		return
 	}
 
-	thumbnailCID, err := addFileToIPFS(ctx, videoToUpload.ThumbnailFile)
-	if err != nil {
-		fmt.Printf("Unable to add thumbnail to IPFS: %s\n", err)
-		return
+	if thumbnailFileExtension == ".jpg" {
+		thumbnailFileExtension = "jpeg"
+	} else {
+		thumbnailFileExtension = thumbnailFileExtension[1:]
 	}
 
 	newVideo := westeggNewVideoRequestBody{
@@ -108,8 +119,8 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody) {
 		VidLen:  videoLength,
 		VidHash: videoCID,
 		Thumbnail: thumbnailData{
-			ThumbHash: thumbnailCID,
-			MimeType:  "image/jpeg",
+			ThumbHash: path.Join(videoCID, "thumbnail"+thumbnailFileExtension),
+			MimeType:  "image/" + thumbnailFileExtension,
 		},
 		Channel: videoToUpload.Channel,
 	}
@@ -146,4 +157,29 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody) {
 		return
 	}
 	fmt.Printf("Response from westegg:\n%s\n", string(body))
+}
+
+func fileCopy(src, dst string) error {
+	sourceFileStat, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	if !sourceFileStat.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", src)
+	}
+
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+	_, err = io.Copy(destination, source)
+	return nil
 }

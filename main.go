@@ -14,6 +14,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+// TODO: Token registration/authentication with westegg for publicly accessible dapper nodes.
+
 type loginRequestBody struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -56,7 +58,7 @@ var rootCmd = &cmds.Command{
 func main() {
 	// Handle `dapper version` or `dapper help`
 	if len(os.Args) > 1 {
-		// Handle `dapper --version'
+		// Handle `dapper --version`
 		if os.Args[1] == "--version" {
 			os.Args[1] = "version"
 		}

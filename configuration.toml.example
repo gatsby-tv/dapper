@@ -1,14 +1,36 @@
+[Videos]
+# The location to store all transcoded video data.
+# If using dapper as the IPFS node, this is where the content will be read from for distributing.
 videoStorageFolder = "/home/nesbitt/Videos"
+
+[ffmpeg]
+# The location of the ffmpeg binary.
 ffmpegDir = "/usr/bin/ffmpeg"
+# The location of the ffprobe binary.
 ffprobeDir = "/usr/bin/ffprobe"
+
+[IPFS]
+# If specified, dapper will attempt to pin videos using the location of the IPFS node given.
+# This must be formatted as `protocol://hostname:port`
+# If not specified, dapper will check if there is a node already running on the localhost.
+# If not, dapper will function as the IPFS node.
+ipfsHost = "http://localhost:5001"
+# If dapper is being used as the IPFS node, this sets the folder for it to store it's IPFS data.
 ipfsDir = "/home/nesbitt/ipfs"
 
+# TODO: Remove when next-auth is implemented
 [LoginInfo]
 userEmail = "nesbitt@gatsby.sh"
 userPassword = "P@ssw0rd"
 
 # Only for development purposes, will NOT work with production westegg
 [DevMode]
-westeggHost = "https://api.gatsby.sh"
+# Whether or not to enable dev mode.
+# Setting this to false is the same as omitting it.
 devMode = true
+# Host to make westegg requests to.
+# This must be formatted as `protocol://hostname:port`
+westeggHost = "https://api.gatsby.sh"
+# The userID to generate an authentication token for.
+# This user must already exist in the database.
 userID = "601a0a8a9d247cad2f439a91"

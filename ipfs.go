@@ -432,6 +432,8 @@ func startIPFS(ctx context.Context) error {
 		} else {
 			fmt.Println("Using existing IPFS node on localhost")
 		}
+	} else {
+		useExistingIPFSNode = true
 	}
 
 	fmt.Println("IPFS Ready!")

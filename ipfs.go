@@ -113,7 +113,7 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 
 func spawnNode(ctx context.Context) (icore.CoreAPI, error) {
 	var ipfsRepoPath string
-	if ipfsRepoPath = viper.GetString("ipfsDir"); ipfsRepoPath == "" {
+	if ipfsRepoPath = viper.GetString("IPFS.ipfsDir"); ipfsRepoPath == "" {
 		ipfsRepoPath, _ = config.PathRoot()
 	}
 
@@ -361,74 +361,77 @@ func addFileToDapperIPFS(ctx context.Context, path string) (string, error) {
 }
 
 func startIPFS(ctx context.Context) error {
-	ipfsRunning, err := checkIPFSDirLocked()
-	if err != nil {
-		return err
-	}
-	if ipfsRunning {
-		useExistingIPFSNode = true
-		ipfsHost = "http://localhost:5001"
-	}
-
-	ipfsRunning, err = checkIPFSListeningLocalhost()
-	if err != nil {
-		return err
-	}
-	if ipfsRunning {
-		useExistingIPFSNode = true
-		ipfsHost = "http://localhost:5001"
-	}
-
-	// If not using an existing IPFS Node, we need to start one
-	if !useExistingIPFSNode {
-		// Spawn a node using the path specified in the config.
-		// If no path was specified in the config, the default path for IPFS is used ($HOME/.ipfs)
-		// If the repo at the path does not exists, it is initialized
-		ipfsTmp, err := spawnNode(ctx)
+	ipfsHost = viper.GetString("IPFS.ipfsHost")
+	if ipfsHost == "" {
+		ipfsRunning, err := checkIPFSDirLocked()
 		if err != nil {
 			return err
 		}
-
-		// Spawn a node using a temporary path, creating a temporary repo for the run
-		// fmt.Println("Spawning node on a temporary repo")
-		// ipfsTmp, err := spawnEphemeral(ctx)
-		// if err != nil {
-		// 	return err
-		// }
-
-		// TODO: Remove at some point
-		fmt.Println("IPFS node is running")
-
-		fmt.Println("-- Going to connect to a few nodes in the Network as bootstrappers --")
-
-		// TODO: Custom bootstrap nodes
-		bootstrapNodes := []string{
-			// IPFS Bootstrapper nodes.
-			"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-			"/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
-			"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-			"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
-
-			// IPFS Cluster Pinning nodes
-			"/ip4/138.201.67.219/tcp/4001/p2p/QmUd6zHcbkbcs7SMxwLs48qZVX3vpcM8errYS7xEczwRMA",
-			"/ip4/138.201.67.219/udp/4001/quic/p2p/QmUd6zHcbkbcs7SMxwLs48qZVX3vpcM8errYS7xEczwRMA",
-			"/ip4/138.201.67.220/tcp/4001/p2p/QmNSYxZAiJHeLdkBg38roksAR9So7Y5eojks1yjEcUtZ7i",
-			"/ip4/138.201.67.220/udp/4001/quic/p2p/QmNSYxZAiJHeLdkBg38roksAR9So7Y5eojks1yjEcUtZ7i",
-			"/ip4/138.201.68.74/tcp/4001/p2p/QmdnXwLrC8p1ueiq2Qya8joNvk3TVVDAut7PrikmZwubtR",
-			"/ip4/138.201.68.74/udp/4001/quic/p2p/QmdnXwLrC8p1ueiq2Qya8joNvk3TVVDAut7PrikmZwubtR",
-			"/ip4/94.130.135.167/tcp/4001/p2p/QmUEMvxS2e7iDrereVYc5SWPauXPyNwxcy9BXZrC1QTcHE",
-			"/ip4/94.130.135.167/udp/4001/quic/p2p/QmUEMvxS2e7iDrereVYc5SWPauXPyNwxcy9BXZrC1QTcHE",
-
-			// You can add more nodes here, for example, another IPFS node you might have running locally, mine was:
-			// "/ip4/127.0.0.1/tcp/4010/p2p/QmZp2fhDLxjYue2RiUvLwT9MWdnbDxam32qYFnGmxZDh5L",
-			// "/ip4/127.0.0.1/udp/4010/quic/p2p/QmZp2fhDLxjYue2RiUvLwT9MWdnbDxam32qYFnGmxZDh5L",
+		if ipfsRunning {
+			useExistingIPFSNode = true
+			ipfsHost = "http://localhost:5001"
 		}
 
-		go connectToPeers(ctx, ipfsTmp, bootstrapNodes)
+		ipfsRunning, err = checkIPFSListeningLocalhost()
+		if err != nil {
+			return err
+		}
+		if ipfsRunning {
+			useExistingIPFSNode = true
+			ipfsHost = "http://localhost:5001"
+		}
 
-		ipfs = ipfsTmp
-	} else {
-		fmt.Println("Using existing IPFS node on localhost")
+		// If not using an existing IPFS Node, we need to start one
+		if !useExistingIPFSNode {
+			// Spawn a node using the path specified in the config.
+			// If no path was specified in the config, the default path for IPFS is used ($HOME/.ipfs)
+			// If the repo at the path does not exists, it is initialized
+			ipfsTmp, err := spawnNode(ctx)
+			if err != nil {
+				return err
+			}
+
+			// Spawn a node using a temporary path, creating a temporary repo for the run
+			// fmt.Println("Spawning node on a temporary repo")
+			// ipfsTmp, err := spawnEphemeral(ctx)
+			// if err != nil {
+			// 	return err
+			// }
+
+			// TODO: Remove at some point
+			fmt.Println("IPFS node is running")
+
+			fmt.Println("-- Going to connect to a few nodes in the Network as bootstrappers --")
+
+			// TODO: Custom bootstrap nodes
+			bootstrapNodes := []string{
+				// IPFS Bootstrapper nodes.
+				"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+				"/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
+				"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+				"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+
+				// IPFS Cluster Pinning nodes
+				"/ip4/138.201.67.219/tcp/4001/p2p/QmUd6zHcbkbcs7SMxwLs48qZVX3vpcM8errYS7xEczwRMA",
+				"/ip4/138.201.67.219/udp/4001/quic/p2p/QmUd6zHcbkbcs7SMxwLs48qZVX3vpcM8errYS7xEczwRMA",
+				"/ip4/138.201.67.220/tcp/4001/p2p/QmNSYxZAiJHeLdkBg38roksAR9So7Y5eojks1yjEcUtZ7i",
+				"/ip4/138.201.67.220/udp/4001/quic/p2p/QmNSYxZAiJHeLdkBg38roksAR9So7Y5eojks1yjEcUtZ7i",
+				"/ip4/138.201.68.74/tcp/4001/p2p/QmdnXwLrC8p1ueiq2Qya8joNvk3TVVDAut7PrikmZwubtR",
+				"/ip4/138.201.68.74/udp/4001/quic/p2p/QmdnXwLrC8p1ueiq2Qya8joNvk3TVVDAut7PrikmZwubtR",
+				"/ip4/94.130.135.167/tcp/4001/p2p/QmUEMvxS2e7iDrereVYc5SWPauXPyNwxcy9BXZrC1QTcHE",
+				"/ip4/94.130.135.167/udp/4001/quic/p2p/QmUEMvxS2e7iDrereVYc5SWPauXPyNwxcy9BXZrC1QTcHE",
+
+				// You can add more nodes here, for example, another IPFS node you might have running locally, mine was:
+				// "/ip4/127.0.0.1/tcp/4010/p2p/QmZp2fhDLxjYue2RiUvLwT9MWdnbDxam32qYFnGmxZDh5L",
+				// "/ip4/127.0.0.1/udp/4010/quic/p2p/QmZp2fhDLxjYue2RiUvLwT9MWdnbDxam32qYFnGmxZDh5L",
+			}
+
+			go connectToPeers(ctx, ipfsTmp, bootstrapNodes)
+
+			ipfs = ipfsTmp
+		} else {
+			fmt.Println("Using existing IPFS node on localhost")
+		}
 	}
 
 	fmt.Println("IPFS Ready!")

@@ -60,7 +60,7 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 	repo, err := fsrepo.Open(repoPath)
 	if err != nil {
 		// Create a config with default options and a 2048 bit key
-		cfg, err := config.Init(ioutil.Discard, 2048)
+		cfg, err := config.Init(ioutil.Discard, 4096)
 		if err != nil {
 			return nil, err
 		}
@@ -93,7 +93,7 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 	return coreapi.NewCoreAPI(node)
 }
 
-func spawnDefault(ctx context.Context) (icore.CoreAPI, error) {
+func spawnNode(ctx context.Context) (icore.CoreAPI, error) {
 	var ipfsRepoPath string
 	if ipfsRepoPath = viper.GetString("ipfsDir"); ipfsRepoPath == "" {
 		ipfsRepoPath, _ = config.PathRoot()
@@ -220,7 +220,7 @@ func startIPFS(ctx context.Context) error {
 	// TODO: Switch to default path after creating verification/creation of default repo
 
 	// Spawn a node using the default path (~/.ipfs), assuming that a repo exists there already
-	ipfsTmp, err := spawnDefault(ctx)
+	ipfsTmp, err := spawnNode(ctx)
 	if err != nil {
 		return err
 	}
@@ -267,4 +267,17 @@ func startIPFS(ctx context.Context) error {
 	fmt.Println("IPFS Ready!")
 
 	return nil
+}
+
+func checkIPFSAlreadyRunning(ctx context.Context) (bool, error) {
+	defaultIPFSDir, _ := config.PathRoot()
+	locked, err := fsrepo.LockedByOtherProcess(defaultIPFSDir)
+	if err != nil {
+		return false, err
+	}
+	if locked {
+		return true, nil
+	}
+
+	return false, nil
 }

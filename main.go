@@ -215,7 +215,7 @@ func startDaemon() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	fmt.Println("-- Getting an IPFS node running -- ")
+	fmt.Println("-- Setting up IPFS -- ")
 
 	err := startIPFS(ctx)
 

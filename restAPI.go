@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path"
@@ -108,19 +109,15 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody) {
 		return
 	}
 
-	if thumbnailFileExtension == ".jpg" {
-		thumbnailFileExtension = "jpeg"
-	} else {
-		thumbnailFileExtension = thumbnailFileExtension[1:]
-	}
+	thumbnailLocation := videoCID + "/thumbnail" + thumbnailFileExtension
 
 	newVideo := westeggNewVideoRequestBody{
 		Title:   videoToUpload.Title,
 		VidLen:  videoLength,
 		VidHash: videoCID,
 		Thumbnail: thumbnailData{
-			ThumbHash: path.Join(videoCID, "thumbnail"+thumbnailFileExtension),
-			MimeType:  "image/" + thumbnailFileExtension,
+			ThumbHash: thumbnailLocation,
+			MimeType:  mime.TypeByExtension(thumbnailFileExtension),
 		},
 		Channel: videoToUpload.Channel,
 	}

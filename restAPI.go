@@ -73,8 +73,9 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "Starting transcode of video file.\n")
+	fmt.Fprintf(w, "Starting transcode of video file.")
 
+	// Run rest of video upload async
 	go asyncVideoUpload(videoToUpload)
 }
 
@@ -95,7 +96,6 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody) {
 	}
 
 	thumbnailFileExtension := filepath.Ext(videoToUpload.ThumbnailFile)
-
 	if err = fileCopy(videoToUpload.ThumbnailFile, path.Join(videoFolder, "thumbnail"+thumbnailFileExtension)); err != nil {
 		fmt.Printf("Unable to copy thumbnail file: %s\n", err)
 		return
@@ -125,8 +125,7 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody) {
 	body, err := json.Marshal(newVideo)
 
 	client := http.Client{}
-	req, err := http.NewRequest(http.MethodPost, WesteggHost+"/v1/video", bytes.NewBuffer(body))
-
+	req, err := http.NewRequest(http.MethodPost, westeggHost+"/v1/video", bytes.NewBuffer(body))
 	if err != nil {
 		fmt.Printf("Failed creating request for westegg: %s\n", err)
 		return
@@ -136,7 +135,6 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody) {
 	req.Header.Add("Authorization", "Bearer "+authToken)
 
 	resp, err := client.Do(req)
-
 	if err != nil {
 		fmt.Printf("Failed sending request to westegg: %s\n", err)
 		return

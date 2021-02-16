@@ -41,7 +41,7 @@ var ipfs icore.CoreAPI
 var useExistingIPFSNode bool
 
 // The path to an existing IPFS
-var ipfsHost string
+var ipfsURI string
 
 type ipfsAddResponse struct {
 	Name string `json:"Name"`
@@ -77,7 +77,7 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 	// Open the repo
 	repo, err := fsrepo.Open(repoPath)
 	if err != nil {
-		// Create a config with default options and a 2048 bit key
+		// Create a config with default options and a 4096 bit key
 		cfg, err := config.Init(ioutil.Discard, 4096)
 		if err != nil {
 			return nil, err
@@ -111,12 +111,7 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 	return coreapi.NewCoreAPI(node)
 }
 
-func spawnNode(ctx context.Context) (icore.CoreAPI, error) {
-	var ipfsRepoPath string
-	if ipfsRepoPath = viper.GetString("IPFS.ipfsDir"); ipfsRepoPath == "" {
-		ipfsRepoPath, _ = config.PathRoot()
-	}
-
+func spawnNode(ctx context.Context, ipfsRepoPath string) (icore.CoreAPI, error) {
 	if err := setupPlugins(ipfsRepoPath); err != nil {
 		return nil, err
 	}
@@ -157,26 +152,6 @@ func connectToPeers(ctx context.Context, ipfs icore.CoreAPI, peers []string) err
 
 	wg.Wait()
 	return nil
-}
-
-func getUnixfsFile(path string) (files.File, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	st, err := file.Stat()
-	if err != nil {
-		return nil, err
-	}
-
-	f, err := files.NewReaderPathFile(path, file, st)
-	if err != nil {
-		return nil, err
-	}
-
-	return f, nil
 }
 
 func getUnixfsNode(path string) (files.Node, error) {
@@ -270,7 +245,7 @@ func addFolderToRemoteIPFS(videoFolder string) (string, error) {
 	w.Close()
 
 	// Now that you have a form, you can submit it to your handler.
-	req, err := http.NewRequest("POST", ipfsHost+"/api/v0/add", &b)
+	req, err := http.NewRequest("POST", ipfsURI+"/api/v0/add", &b)
 	if err != nil {
 		return "", err
 	}
@@ -361,15 +336,33 @@ func addFileToDapperIPFS(ctx context.Context, path string) (string, error) {
 }
 
 func startIPFS(ctx context.Context) error {
-	ipfsHost = viper.GetString("IPFS.ipfsHost")
-	if ipfsHost == "" {
-		ipfsRunning, err := checkIPFSDirLocked()
+	// Read config data
+	ipfsURI = viper.GetString("IPFS.ipfsURI")
+	ipfsRepoPath := viper.GetString("IPFS.ipfsRepoDir")
+	if ipfsRepoPath == "" {
+		ipfsRepoPath, _ = config.PathRoot()
+	}
+
+	// If a IPFS URI has not been defined,
+	// check if a node is running on the system.
+	if ipfsURI == "" {
+		defaultIPFSRoot, err := config.PathRoot()
+		ipfsRunning, err := checkIPFSDirLocked(defaultIPFSRoot)
 		if err != nil {
 			return err
 		}
 		if ipfsRunning {
 			useExistingIPFSNode = true
-			ipfsHost = "http://localhost:5001"
+			ipfsURI = "http://localhost:5001"
+		}
+
+		ipfsRunning, err = checkIPFSDirLocked(ipfsRepoPath)
+		if err != nil {
+			return err
+		}
+		if ipfsRunning {
+			useExistingIPFSNode = true
+			ipfsURI = "http://localhost:5001"
 		}
 
 		ipfsRunning, err = checkIPFSListeningLocalhost()
@@ -378,7 +371,7 @@ func startIPFS(ctx context.Context) error {
 		}
 		if ipfsRunning {
 			useExistingIPFSNode = true
-			ipfsHost = "http://localhost:5001"
+			ipfsURI = "http://localhost:5001"
 		}
 
 		// If not using an existing IPFS Node, we need to start one
@@ -386,22 +379,12 @@ func startIPFS(ctx context.Context) error {
 			// Spawn a node using the path specified in the config.
 			// If no path was specified in the config, the default path for IPFS is used ($HOME/.ipfs)
 			// If the repo at the path does not exists, it is initialized
-			ipfsTmp, err := spawnNode(ctx)
+			ipfsTmp, err := spawnNode(ctx, ipfsRepoPath)
 			if err != nil {
 				return err
 			}
 
-			// Spawn a node using a temporary path, creating a temporary repo for the run
-			// fmt.Println("Spawning node on a temporary repo")
-			// ipfsTmp, err := spawnEphemeral(ctx)
-			// if err != nil {
-			// 	return err
-			// }
-
-			// TODO: Remove at some point
-			fmt.Println("IPFS node is running")
-
-			fmt.Println("-- Going to connect to a few nodes in the Network as bootstrappers --")
+			fmt.Println("Internal IPFS node is running")
 
 			// TODO: Custom bootstrap nodes
 			bootstrapNodes := []string{
@@ -420,10 +403,6 @@ func startIPFS(ctx context.Context) error {
 				"/ip4/138.201.68.74/udp/4001/quic/p2p/QmdnXwLrC8p1ueiq2Qya8joNvk3TVVDAut7PrikmZwubtR",
 				"/ip4/94.130.135.167/tcp/4001/p2p/QmUEMvxS2e7iDrereVYc5SWPauXPyNwxcy9BXZrC1QTcHE",
 				"/ip4/94.130.135.167/udp/4001/quic/p2p/QmUEMvxS2e7iDrereVYc5SWPauXPyNwxcy9BXZrC1QTcHE",
-
-				// You can add more nodes here, for example, another IPFS node you might have running locally, mine was:
-				// "/ip4/127.0.0.1/tcp/4010/p2p/QmZp2fhDLxjYue2RiUvLwT9MWdnbDxam32qYFnGmxZDh5L",
-				// "/ip4/127.0.0.1/udp/4010/quic/p2p/QmZp2fhDLxjYue2RiUvLwT9MWdnbDxam32qYFnGmxZDh5L",
 			}
 
 			go connectToPeers(ctx, ipfsTmp, bootstrapNodes)
@@ -441,9 +420,8 @@ func startIPFS(ctx context.Context) error {
 	return nil
 }
 
-func checkIPFSDirLocked() (bool, error) {
-	defaultIPFSDir, _ := config.PathRoot()
-	locked, err := fsrepo.LockedByOtherProcess(defaultIPFSDir)
+func checkIPFSDirLocked(ipfsRepo string) (bool, error) {
+	locked, err := fsrepo.LockedByOtherProcess(ipfsRepo)
 	if err != nil {
 		return false, err
 	}
@@ -471,6 +449,7 @@ func checkIPFSListeningLocalhost() (bool, error) {
 
 	defer resp.Body.Close()
 
+	// Assume any response error codes means IPFS is not running
 	if resp.StatusCode >= 400 {
 		return false, nil
 	}

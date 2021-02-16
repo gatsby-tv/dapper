@@ -14,4 +14,4 @@ VideoFile = "/home/nesbitt/Videos/Raccoon.mp4"
 # Path to the thumbnail file on the system running the dapper daemon.
 ThumbnailFile = "/home/nesbitt/Pictures/test.jpg"
 # ID of the channel for the video to be uploaded to.
-Channel = "601a0c689d247c58e8439a92"
+Channel = "neboman11"

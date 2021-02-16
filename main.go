@@ -15,8 +15,8 @@ import (
 )
 
 // TODO: Token registration/authentication with westegg for publicly accessible dapper nodes.
-// TODO: Upload videos using already existing ipfs node.
 
+// TODO: Remove after implementing new authentication method.
 type loginRequestBody struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -26,20 +26,20 @@ type loginResponse struct {
 	Token string `json:"token"`
 }
 
-// ConfigFileLocation - Folder to search for config file
-const ConfigFileLocation = "."
+// Folder to search for config file
+const configFileLocation = "."
 
-// ConfigFileName - Name of config file (without extension)
-const ConfigFileName = "configuration"
+// Name of config file (without extension)
+const configFileName = "configuration"
 
-// ConfigFileExtension - Type of config file
-const ConfigFileExtension = "toml"
+// Type of config file
+const configFileExtension = "toml"
 
-// WesteggHost is the location to sent requests to westegg (eg. https://api.gatsby.sh)
-var WesteggHost string
+// Location to send westegg requests
+var westeggHost string
 
-// DevMode changes the logic of some sections to corrospond with westegg's dev mode
-var DevMode bool
+// devMode changes the logic of some sections to corrospond with westegg's dev mode
+var devMode bool
 
 var rootCmd = &cmds.Command{
 	Options: []cmds.Option{
@@ -81,7 +81,7 @@ func main() {
 		os.Args = append(os.Args, "--help")
 	}
 
-	// parse the command path, arguments and options from the command line
+	// Parse the command path, arguments and options from the command line
 	req, err := cli.Parse(context.TODO(), os.Args[1:], os.Stdin, rootCmd)
 	if err != nil {
 		log.Fatal(err)
@@ -89,7 +89,7 @@ func main() {
 
 	req.Options["encoding"] = cmds.Text
 
-	// create an emitter
+	// Create an emitter
 	cliRe, err := cli.NewResponseEmitter(os.Stdout, os.Stderr, req)
 	if err != nil {
 		log.Fatal(err)
@@ -123,21 +123,21 @@ func main() {
 }
 
 func readConfigFile() {
-	viper.SetConfigName(ConfigFileName)
-	viper.SetConfigType(ConfigFileExtension)
-	viper.AddConfigPath(ConfigFileLocation)
+	viper.SetConfigName(configFileName)
+	viper.SetConfigType(configFileExtension)
+	viper.AddConfigPath(configFileLocation)
 	err := viper.ReadInConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	DevMode = viper.GetBool("DevMode.devMode")
+	devMode = viper.GetBool("DevMode.devMode")
 }
 
 func getAuthToken() string {
-	if DevMode {
+	if devMode {
 		client := http.Client{}
-		req, err := http.NewRequest(http.MethodGet, WesteggHost+"/v1/auth/devtoken?key=localhost&id="+viper.GetString("DevMode.userID"), nil)
+		req, err := http.NewRequest(http.MethodGet, westeggHost+"/v1/auth/devtoken?key=localhost&id="+viper.GetString("DevMode.userID"), nil)
 		if err != nil {
 			panic(err)
 		}
@@ -207,24 +207,23 @@ func getAuthToken() string {
 }
 
 func startDaemon() {
-	WesteggHost = viper.GetString("DevMode.westeggHost")
-	if WesteggHost == "" {
-		WesteggHost = "https://api.gatsby.sh"
+	westeggHost = viper.GetString("DevMode.westeggHost")
+	if westeggHost == "" {
+		westeggHost = "https://api.gatsby.sh"
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	fmt.Println("-- Setting up IPFS -- ")
+	fmt.Println("-- Setting up IPFS --")
 
 	err := startIPFS(ctx)
-
 	if err != nil {
 		log.Fatal(fmt.Errorf("Failed to start IPFS: %s", err))
 	}
 
 	authToken := getAuthToken()
 
-	fmt.Println("\nReady for requests")
+	fmt.Println("Ready for requests")
 	handleRequests(authToken)
 }

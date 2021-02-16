@@ -13,6 +13,8 @@ import (
 	"github.com/pelletier/go-toml"
 )
 
+// Emitters in this file should end with a newline since they will be printed on the command line.
+
 var daemonCmd = &cmds.Command{
 	Run: func(r *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment) error {
 		err := cli.HandleHelp("dapper", r, os.Stdout)
@@ -20,9 +22,11 @@ var daemonCmd = &cmds.Command{
 			readConfigFile()
 			startDaemon()
 			return nil
+		} else if err == nil {
+			return nil
+		} else {
+			return err
 		}
-
-		return nil
 	},
 }
 
@@ -33,15 +37,38 @@ var uploadCmd = &cmds.Command{
 	Run: func(r *cmds.Request, re cmds.ResponseEmitter, e cmds.Environment) error {
 		helpErr := cli.HandleHelp("dapper", r, os.Stdout)
 		if helpErr == cli.ErrNoHelpRequested {
+			// Validate input
 			if len(r.Arguments) == 0 {
-				return re.Emit("Missing `video data` argument!\nDo `dapper upload --help` to see usage.")
+				return re.Emit("Missing `video data` argument!\nDo `dapper upload --help` to see usage.\n")
 			}
 			if _, err := os.Stat(r.Arguments[0]); err != nil {
-				return err
+				return re.Emit("Failed opening given video file: " + err.Error() + "\n")
 			}
 
 			videoData, err := toml.LoadFile(r.Arguments[0])
 
+			hasNeededField := videoData.Has("Title")
+			if !hasNeededField {
+				return re.Emit("Missing Title field from video file.\n")
+			}
+			hasNeededField = videoData.Has("Description")
+			if !hasNeededField {
+				return re.Emit("Missing Description field from video file.\n")
+			}
+			hasNeededField = videoData.Has("VideoFile")
+			if !hasNeededField {
+				return re.Emit("Missing VideoFile field from video file.\n")
+			}
+			hasNeededField = videoData.Has("ThumbnailFile")
+			if !hasNeededField {
+				return re.Emit("Missing ThumbnailFile field from video file.\n")
+			}
+			hasNeededField = videoData.Has("Channel")
+			if !hasNeededField {
+				return re.Emit("Missing Channel field from video file.\n")
+			}
+
+			// Send request to dapper daemon
 			newVideo := newVideoRequestBody{
 				Title:         videoData.Get("Title").(string),
 				Description:   videoData.Get("Description").(string),
@@ -57,7 +84,6 @@ var uploadCmd = &cmds.Command{
 
 			client := http.Client{}
 			req, err := http.NewRequest(http.MethodPost, "http://localhost:10000/video", bytes.NewBuffer(body))
-
 			if err != nil {
 				return err
 			}
@@ -65,7 +91,6 @@ var uploadCmd = &cmds.Command{
 			req.Header.Add("Content-Type", "application/json")
 
 			resp, err := client.Do(req)
-
 			if err != nil {
 				return err
 			}
@@ -80,9 +105,11 @@ var uploadCmd = &cmds.Command{
 				return re.Emit(fmt.Sprintf("Failed to send to dapper: %s\n", string(body)))
 			}
 
-			return re.Emit(fmt.Sprintf("%s", string(body)))
+			return re.Emit(fmt.Sprintf("%s\n", string(body)))
+		} else if helpErr == nil {
+			return nil
+		} else {
+			return helpErr
 		}
-
-		return nil
 	},
 }

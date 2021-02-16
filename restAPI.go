@@ -39,6 +39,10 @@ type thumbnailData struct {
 	MimeType  string `json:"mimeType"`
 }
 
+type westeggChannelResponse struct {
+	ID string `json:"_id"`
+}
+
 var authToken string
 
 func handleRequests(token string) {
@@ -72,6 +76,39 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Unable to unmarshal json body: %s", err)
 		return
 	}
+
+	// Get ID associated with given channel handle
+	client := http.Client{}
+	req, err := http.NewRequest(http.MethodPost, westeggHost+"/v1/channel/"+videoToUpload.Channel, nil)
+	if err != nil {
+		fmt.Fprintf(w, "Failed creating request for westegg: %s", err)
+		return
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Fprintf(w, "Failed getting channel ID from westegg: %s", err)
+		return
+	}
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Fprintf(w, "Failed reading body of response: %s", err)
+		return
+	}
+
+	if resp.StatusCode >= 400 {
+		fmt.Fprintf(w, "Failed getting channel ID from westegg: %s", string(body))
+		return
+	}
+
+	var channelID westeggChannelResponse
+	err = json.Unmarshal(body, &channelID)
+
+	videoToUpload.Channel = channelID.ID
 
 	fmt.Fprintf(w, "Starting transcode of video file.")
 
@@ -148,7 +185,7 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody) {
 	}
 
 	if resp.StatusCode >= 400 {
-		fmt.Printf("Error from westegg: %s\n", string(body))
+		fmt.Printf("Error response sending video to westegg: %s\n", string(body))
 		return
 	}
 	fmt.Printf("Response from westegg:\n%s\n", string(body))

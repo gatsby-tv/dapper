@@ -79,7 +79,7 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 
 	// Get ID associated with given channel handle
 	client := http.Client{}
-	req, err := http.NewRequest(http.MethodPost, westeggHost+"/v1/channel/"+videoToUpload.Channel, nil)
+	req, err := http.NewRequest(http.MethodGet, westeggHost+"/v1/channel/"+videoToUpload.Channel, nil)
 	if err != nil {
 		fmt.Fprintf(w, "Failed creating request for westegg: %s", err)
 		return

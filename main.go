@@ -8,9 +8,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 
 	cmds "github.com/ipfs/go-ipfs-cmds"
 	"github.com/ipfs/go-ipfs-cmds/cli"
+	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
 )
 
@@ -131,7 +133,16 @@ func readConfigFile() {
 		log.Fatal(err)
 	}
 
+	if videoDir := viper.GetString("Videos.videoStorageFolder"); videoDir == "" {
+		videoDir, err = homedir.Dir()
+		if err != nil {
+			log.Fatal(err)
+		}
+		viper.Set("Videos.videoStorageFolder", path.Join(videoDir, "Videos"))
+	}
+	fmt.Println(viper.GetString("Videos.videoStorageFolder"))
 	devMode = viper.GetBool("DevMode.devMode")
+	fmt.Printf("DevMode: %t\n", viper.GetBool("DevMode.devMode"))
 }
 
 func getAuthToken() string {

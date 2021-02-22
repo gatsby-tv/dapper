@@ -42,7 +42,7 @@ var uploadCmd = &cmds.Command{
 				return re.Emit("Missing `video data` argument!\nDo `dapper upload --help` to see usage.\n")
 			}
 			if _, err := os.Stat(r.Arguments[0]); err != nil {
-				return re.Emit("Failed opening given video file: " + err.Error() + "\n")
+				return re.Emit("Failed opening given video data file: " + err.Error() + "\n")
 			}
 
 			videoData, err := toml.LoadFile(r.Arguments[0])

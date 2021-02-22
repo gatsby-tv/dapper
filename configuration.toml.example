@@ -1,12 +1,15 @@
 [Videos]
 # The location to store all transcoded video data.
 # If using dapper as the IPFS node, this is where the content will be read from for distributing.
+# If not specified, the users Videos folder in their home is used ($HOME/Videos).
 videoStorageFolder = "/home/nesbitt/Videos"
 
 [ffmpeg]
 # The location of the ffmpeg binary.
+# If not specified, uses the PATH to find it.
 ffmpegDir = "/usr/bin/ffmpeg"
 # The location of the ffprobe binary.
+# If not specified, uses the PATH to find it.
 ffprobeDir = "/usr/bin/ffprobe"
 
 [IPFS]

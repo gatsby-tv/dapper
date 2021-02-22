@@ -133,6 +133,7 @@ func readConfigFile() {
 		log.Fatal(err)
 	}
 
+	// Verify necessary config values are set
 	if videoDir := viper.GetString("Videos.videoStorageFolder"); videoDir == "" {
 		videoDir, err = homedir.Dir()
 		if err != nil {
@@ -140,9 +141,16 @@ func readConfigFile() {
 		}
 		viper.Set("Videos.videoStorageFolder", path.Join(videoDir, "Videos"))
 	}
-	fmt.Println(viper.GetString("Videos.videoStorageFolder"))
+
+	if ffmpegDir := viper.GetString("ffmpeg.ffmpegDir"); ffmpegDir == "" {
+		viper.Set("ffmpeg.ffmpegDir", "ffmpeg")
+	}
+
+	if ffmpegDir := viper.GetString("ffmpeg.ffprobeDir"); ffmpegDir == "" {
+		viper.Set("ffmpeg.ffprobeDir", "ffprobe")
+	}
+
 	devMode = viper.GetBool("DevMode.devMode")
-	fmt.Printf("DevMode: %t\n", viper.GetBool("DevMode.devMode"))
 }
 
 func getAuthToken() string {

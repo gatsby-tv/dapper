@@ -31,4 +31,5 @@ Body:
     "VideoFile": "path to video file on dapper's filesystem",
     "ThumbnailFile": "path to thumbnail file on dapper's filesystem",
     "Channel": "Handle of channel to upload video to (channel ID is also supported)"
-}```
+}
+```

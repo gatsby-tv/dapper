@@ -23,6 +23,7 @@ import (
 	libp2p "github.com/ipfs/go-ipfs/core/node/libp2p"
 	"github.com/ipfs/go-ipfs/plugin/loader"
 	"github.com/ipfs/go-ipfs/repo/fsrepo"
+	migrate "github.com/ipfs/go-ipfs/repo/fsrepo/migrations"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/libp2p/go-libp2p-core/metrics"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -76,7 +77,20 @@ func setupPlugins(externalPluginsPath string) error {
 func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 	// Open the repo
 	repo, err := fsrepo.Open(repoPath)
-	if err != nil {
+	missingRepoError := fsrepo.NoRepoError{
+		Path: repoPath,
+	}
+	if err == fsrepo.ErrNeedMigration {
+		err = migrate.RunMigration(fsrepo.RepoVersion)
+		if err != nil {
+			return nil, err
+		}
+
+		repo, err = fsrepo.Open(repoPath)
+		if err != nil {
+			return nil, err
+		}
+	} else if err == missingRepoError {
 		// Create a config with default options and a 4096 bit key
 		cfg, err := config.Init(ioutil.Discard, 4096)
 		if err != nil {
@@ -90,6 +104,8 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		return nil, err
 	}
 
 	// Construct the node

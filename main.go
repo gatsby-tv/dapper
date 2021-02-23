@@ -225,7 +225,7 @@ func getAuthToken() string {
 	return ""
 }
 
-func startDaemon() {
+func startDaemon(port int) {
 	westeggHost = viper.GetString("DevMode.westeggHost")
 	if westeggHost == "" {
 		westeggHost = "https://api.gatsby.sh"
@@ -244,5 +244,5 @@ func startDaemon() {
 	authToken := getAuthToken()
 
 	fmt.Println("Ready for requests")
-	handleRequests(authToken)
+	handleRequests(port, authToken)
 }

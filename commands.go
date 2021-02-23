@@ -16,11 +16,20 @@ import (
 // Emitters in this file should end with a newline since they will be printed on the command line.
 
 var daemonCmd = &cmds.Command{
+	Options: []cmds.Option{
+		cmds.IntOption("p", "port", "Port for the daemon to listen on."),
+	},
 	Run: func(r *cmds.Request, re cmds.ResponseEmitter, env cmds.Environment) error {
 		err := cli.HandleHelp("dapper", r, os.Stdout)
 		if err == cli.ErrNoHelpRequested {
 			readConfigFile()
-			startDaemon()
+			var daemonPort int
+			if portOption := r.Options["p"]; portOption == nil {
+				daemonPort = 10000
+			} else {
+				daemonPort = r.Options["p"].(int)
+			}
+			startDaemon(daemonPort)
 			return nil
 		} else if err == nil {
 			return nil
@@ -31,6 +40,9 @@ var daemonCmd = &cmds.Command{
 }
 
 var uploadCmd = &cmds.Command{
+	Options: []cmds.Option{
+		cmds.IntOption("p", "port", "Port the daemon is listening on. If this flag was given to `dapper daemon` it must also be provided here."),
+	},
 	Arguments: []cmds.Argument{
 		cmds.StringArg("video data", false, false, "TOML file containing information about video to upload"),
 	},
@@ -43,6 +55,13 @@ var uploadCmd = &cmds.Command{
 			}
 			if _, err := os.Stat(r.Arguments[0]); err != nil {
 				return re.Emit("Failed opening given video data file: " + err.Error() + "\n")
+			}
+
+			var daemonPort int
+			if portOption := r.Options["p"]; portOption == nil {
+				daemonPort = 10000
+			} else {
+				daemonPort = r.Options["p"].(int)
 			}
 
 			videoData, err := toml.LoadFile(r.Arguments[0])
@@ -83,7 +102,7 @@ var uploadCmd = &cmds.Command{
 			}
 
 			client := http.Client{}
-			req, err := http.NewRequest(http.MethodPost, "http://localhost:10000/video", bytes.NewBuffer(body))
+			req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://localhost:%d/video", daemonPort), bytes.NewBuffer(body))
 			if err != nil {
 				return err
 			}

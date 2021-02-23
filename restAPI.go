@@ -45,7 +45,7 @@ type westeggChannelResponse struct {
 
 var authToken string
 
-func handleRequests(token string) {
+func handleRequests(port int, token string) {
 	authToken = token
 
 	myRouter := mux.NewRouter().StrictSlash(true)
@@ -57,7 +57,7 @@ func handleRequests(token string) {
 	// POSTs
 	myRouter.HandleFunc("/video", uploadVideo).Methods("POST")
 
-	log.Fatal(http.ListenAndServe(":10000", myRouter))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), myRouter))
 }
 
 func homePage(w http.ResponseWriter, r *http.Request) {

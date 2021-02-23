@@ -12,6 +12,18 @@ Note: On Windows, this requires using Command Prompt or Powershell to launch the
 
 After the daemon has been started, videos can be uploaded by creating a TOML file describing the information about the video and feeding that into dapper. An example video data file can be found [here](https://github.com/gatsby-tv/dapper/blob/main/test-video.toml.example). To feed it into dapper, simply run `dapper upload <video TOML file>`.
 
+## Building
+
+To build dapper, simply clone this repository and run `go build` inside it. For example:
+
+```bash
+git clone https://github.com/gatsby-tv/dapper.git
+cd dapper
+go build
+```
+
+This will result in a `dapper` executable to be created in that folder (on Windows it will be `dapper.exe`).
+
 ## API
 
 The dapper daemon listens for REST API requests on port 10000. This is used internally for uploading new videos, but can be communicated with directly.

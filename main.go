@@ -59,12 +59,12 @@ func readConfigFile() {
 	}
 
 	// Verify necessary config values are set
-	if videoDir := viper.GetString("Videos.videoStorageFolder"); videoDir == "" {
+	if videoDir := viper.GetString("Videos.TempVideoStorageFolder"); videoDir == "" {
 		videoDir, err = homedir.Dir()
 		if err != nil {
 			log.Fatal(err)
 		}
-		viper.Set("Videos.videoStorageFolder", path.Join(videoDir, "Videos"))
+		viper.Set("Videos.TempVideoStorageFolder", path.Join(videoDir, "Videos"))
 	}
 
 	if ffmpegDir := viper.GetString("ffmpeg.ffmpegDir"); ffmpegDir == "" {

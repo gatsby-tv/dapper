@@ -2,11 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"path"
 
@@ -16,9 +13,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-// TODO: Token registration/authentication with westegg for publicly accessible dapper nodes.
-
-// TODO: Remove after implementing new authentication method.
 type loginRequestBody struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -149,88 +143,9 @@ func readConfigFile() {
 	if ffmpegDir := viper.GetString("ffmpeg.ffprobeDir"); ffmpegDir == "" {
 		viper.Set("ffmpeg.ffprobeDir", "ffprobe")
 	}
-
-	devMode = viper.GetBool("DevMode.devMode")
-}
-
-func getAuthToken() string {
-	if devMode {
-		client := http.Client{}
-		req, err := http.NewRequest(http.MethodGet, westeggHost+"/v1/auth/devtoken?key=localhost&id="+viper.GetString("DevMode.userID"), nil)
-		if err != nil {
-			panic(err)
-		}
-
-		req.Header.Add("Content-Type", "application/json")
-
-		resp, err := client.Do(req)
-		if err != nil {
-			panic(err)
-		}
-
-		defer resp.Body.Close()
-
-		if resp.StatusCode != 200 {
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				panic(err)
-			}
-			fmt.Printf("Failed to send to westegg: %s", string(body))
-		}
-
-		var res loginResponse
-
-		json.NewDecoder(resp.Body).Decode(&res)
-
-		return res.Token
-	}
-
-	// TODO: Change to next-auth login
-	// data := loginRequestBody{
-	// 	Email:    viper.GetString("LoginInfo.userEmail"),
-	// 	Password: viper.GetString("LoginInfo.userPassword")}
-
-	// body, err := json.Marshal(data)
-
-	// client := http.Client{}
-	// req, err := http.NewRequest(http.MethodPost, WesteggHost+"/v1/auth/login", bytes.NewBuffer(body))
-
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// req.Header.Add("Content-Type", "application/json")
-
-	// resp, err := client.Do(req)
-
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// defer resp.Body.Close()
-
-	// if resp.StatusCode != 200 {
-	// 	body, err := ioutil.ReadAll(resp.Body)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// 	fmt.Printf("Failed to send to westegg: %s", string(body))
-	// }
-
-	// var res loginResponse
-
-	// json.NewDecoder(resp.Body).Decode(&res)
-
-	// return res.Token
-	return ""
 }
 
 func startDaemon(port int) {
-	westeggHost = viper.GetString("DevMode.westeggHost")
-	if westeggHost == "" {
-		westeggHost = "https://api.gatsby.sh"
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -241,8 +156,6 @@ func startDaemon(port int) {
 		log.Fatal(fmt.Errorf("Failed to start IPFS: %s", err))
 	}
 
-	authToken := getAuthToken()
-
 	fmt.Println("Ready for requests")
-	handleRequests(port, authToken)
+	handleRequests(port)
 }

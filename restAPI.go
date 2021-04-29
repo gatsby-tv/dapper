@@ -1,14 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
-	"mime"
 	"net/http"
 	"os"
 	"path"
@@ -26,28 +24,12 @@ type newVideoRequestBody struct {
 	Channel       string `json:"Channel"`
 }
 
-type westeggNewVideoRequestBody struct {
-	Title     string        `json:"title"`
-	VidLen    int           `json:"duration"`
-	VidHash   string        `json:"content"`
-	Thumbnail thumbnailData `json:"thumbnail"`
-	Channel   string        `json:"channel"`
-}
-
 type thumbnailData struct {
 	ThumbHash string `json:"hash"`
 	MimeType  string `json:"mimeType"`
 }
 
-type westeggChannelResponse struct {
-	ID string `json:"_id"`
-}
-
-var authToken string
-
-func handleRequests(port int, token string) {
-	authToken = token
-
+func handleRequests(port int) {
 	myRouter := mux.NewRouter().StrictSlash(true)
 
 	// GETs
@@ -77,39 +59,6 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get ID associated with given channel handle
-	client := http.Client{}
-	req, err := http.NewRequest(http.MethodGet, westeggHost+"/v1/channel/"+videoToUpload.Channel, nil)
-	if err != nil {
-		fmt.Fprintf(w, "Failed creating request for westegg: %s", err)
-		return
-	}
-
-	req.Header.Add("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Fprintf(w, "Failed getting channel ID from westegg: %s", err)
-		return
-	}
-
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Fprintf(w, "Failed reading body of response: %s", err)
-		return
-	}
-
-	if resp.StatusCode >= 400 {
-		fmt.Fprintf(w, "Failed getting channel ID from westegg: %s", string(body))
-		return
-	}
-
-	var channelID westeggChannelResponse
-	err = json.Unmarshal(body, &channelID)
-
-	videoToUpload.Channel = channelID.ID
-
 	fmt.Fprintf(w, "Starting transcode of video file.")
 
 	// Run rest of video upload async
@@ -126,6 +75,9 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody) {
 		fmt.Printf("Unable to get video length: %s\n", err)
 		return
 	}
+
+	fmt.Printf("Video Length: %d", videoLength)
+
 	videoFolder, err := convertToHLS(videoToUpload.VideoFile)
 	if err != nil {
 		fmt.Printf("Unable to convert video to HLS: %s\n", err)
@@ -148,47 +100,19 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody) {
 
 	thumbnailLocation := videoCID + "/thumbnail" + thumbnailFileExtension
 
-	newVideo := westeggNewVideoRequestBody{
-		Title:   videoToUpload.Title,
-		VidLen:  videoLength,
-		VidHash: videoCID,
-		Thumbnail: thumbnailData{
-			ThumbHash: thumbnailLocation,
-			MimeType:  mime.TypeByExtension(thumbnailFileExtension),
-		},
-		Channel: videoToUpload.Channel,
-	}
+	// newVideo := westeggNewVideoRequestBody{
+	// 	Title:   videoToUpload.Title,
+	// 	VidLen:  videoLength,
+	// 	VidHash: videoCID,
+	// 	Thumbnail: thumbnailData{
+	// 		ThumbHash: thumbnailLocation,
+	// 		MimeType:  mime.TypeByExtension(thumbnailFileExtension),
+	// 	},
+	// 	Channel: videoToUpload.Channel,
+	// }
 
-	body, err := json.Marshal(newVideo)
-
-	client := http.Client{}
-	req, err := http.NewRequest(http.MethodPost, westeggHost+"/v1/video", bytes.NewBuffer(body))
-	if err != nil {
-		fmt.Printf("Failed creating request for westegg: %s\n", err)
-		return
-	}
-
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Authorization", "Bearer "+authToken)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Printf("Failed sending request to westegg: %s\n", err)
-		return
-	}
-
-	defer resp.Body.Close()
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Printf("Failed reading body of response: %s\n", err)
-		return
-	}
-
-	if resp.StatusCode >= 400 {
-		fmt.Printf("Error response sending video to westegg: %s\n", string(body))
-		return
-	}
-	fmt.Printf("Response from westegg:\n%s\n", string(body))
+	fmt.Printf("Video CID: %s\nThumbnail CID: %s\n", videoCID, thumbnailLocation)
+	fmt.Printf("Video finished transcoding.\n")
 }
 
 func fileCopy(src, dst string) error {

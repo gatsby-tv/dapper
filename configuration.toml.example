@@ -21,20 +21,3 @@ ipfsURI = "http://localhost:5001"
 # If dapper is being used as the IPFS node, this sets the folder for it to store it's IPFS data.
 # If ipfsURI is set, this line is ignored
 ipfsRepoDir = "/home/nesbitt/ipfs"
-
-# TODO: Remove when next-auth is implemented
-[LoginInfo]
-userEmail = "nesbitt@gatsby.sh"
-userPassword = "P@ssw0rd"
-
-# Only for development purposes, will NOT work with production westegg
-[DevMode]
-# Whether or not to enable dev mode.
-# Setting this to false is the same as omitting it.
-devMode = true
-# Host to make westegg requests to.
-# This must be formatted as `protocol://hostname:port`
-westeggHost = "https://api.gatsby.sh"
-# The userID to generate an authentication token for.
-# This user must already exist in the database.
-userID = "601a0a8a9d247cad2f439a91"

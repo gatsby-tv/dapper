@@ -6,11 +6,11 @@ Dapper uses IPFS to place content onto the network. It supports using an existin
 
 ## Usage
 
-In order to use dapper, first set the desired values in the configuration file. An example configuration file can be found [here](https://github.com/gatsby-tv/dapper/blob/main/configuration.toml.example). After it has been configured, place the configuration file in the same folder as the dapper executable, and run it with `dapper daemon`.
+In order to use dapper, first set the desired values in the configuration file. An example configuration file can be found [here](https://github.com/gatsby-tv/dapper/blob/main/configuration.toml.example). After it has been configured, place the configuration file in the same folder as the dapper executable, and run it with `dapper`. Dapper will then start listening for requests.
 
-Note: On Windows, this requires using Command Prompt or Powershell to launch the application.
+### Command Line Options
 
-After the daemon has been started, videos can be uploaded by creating a TOML file describing the information about the video and feeding that into dapper. An example video data file can be found [here](https://github.com/gatsby-tv/dapper/blob/main/test-video.toml.example). To feed it into dapper, simply run `dapper upload <video TOML file>`.
+- `-p` - Port for dapper to listen for requests on.
 
 ## Building
 

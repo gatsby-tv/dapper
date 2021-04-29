@@ -19,7 +19,7 @@ func getVideoLength(videoFile string) (videoLength int, err error) {
 	cmd := exec.Command(viper.GetString("ffmpeg.ffprobeDir"), "-i", videoFile, "-show_entries", "format=duration", "-v", "quiet", "-of", `csv=p=0`)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return 0, errors.New(string(out))
+		return 0, errors.New(string(out) + " | " + err.Error())
 	}
 
 	videoLengthFloat, err := strconv.ParseFloat(string(out[:len(out)-1]), 64)
@@ -47,7 +47,7 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 	fmt.Printf("Converting %s to HLS\n", videoFile)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", errors.New(string(out))
+		return "", errors.New(string(out) + " | " + err.Error())
 	}
 
 	return videoFolder, nil

@@ -6,6 +6,10 @@ Tool for adding and hosting videos on GatsbyTV.
 
 Dapper uses IPFS to place content onto the network. It supports using an existing IPFS node to pin content, but also has the ability to run the IPFS node internally.
 
+## Docker
+
+Docker images are available for dapper at `gatsbytv/dapper`. Check the docker registry for available tags.
+
 ## Usage
 
 In order to use dapper, first set the desired values in the configuration file. An example configuration file can be found [here](https://github.com/gatsby-tv/dapper/blob/main/configuration.toml.example). After it has been configured, place the configuration file in the same folder as the dapper executable, and run it with `dapper`. Dapper will then start listening for requests.

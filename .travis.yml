@@ -18,3 +18,4 @@ jobs:
 
       script:
         - docker tag gatsbytv/dapper gatsbytv/dapper:latest
+        - docker push gatsbytv/dapper:latest

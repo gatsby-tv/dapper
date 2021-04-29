@@ -15,6 +15,7 @@ import (
 // HLSChunkLength - Size of HLS pieces in seconds
 const HLSChunkLength = 10
 
+// Uses `ffprobe` to find the length of the video in seconds (ceilinged ot next largest int)
 func getVideoLength(videoFile string) (videoLength int, err error) {
 	cmd := exec.Command(viper.GetString("ffmpeg.ffprobeDir"), "-i", videoFile, "-show_entries", "format=duration", "-v", "quiet", "-of", `csv=p=0`)
 	out, err := cmd.CombinedOutput()
@@ -32,6 +33,7 @@ func getVideoLength(videoFile string) (videoLength int, err error) {
 	return videoLength, nil
 }
 
+// Converts the given video to HLS chunks and places them in a folder named with the video's UUID
 func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 	// Create folder to store HLS video in
 	videoFolder = path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoUUID)

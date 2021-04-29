@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/spf13/viper"
@@ -36,8 +35,7 @@ func handleRequests(port int) {
 	myRouter := mux.NewRouter().StrictSlash(true)
 
 	// GETs
-	myRouter.HandleFunc("/", homePage)
-	myRouter.HandleFunc("/traffic", getCurrentOutTraffic).Methods("GET")
+	// myRouter.HandleFunc("/traffic", getCurrentOutTraffic).Methods("GET")
 
 	// POSTs
 	myRouter.HandleFunc("/video", uploadVideo).Methods("POST")
@@ -45,14 +43,11 @@ func handleRequests(port int) {
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), myRouter))
 }
 
-func homePage(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Welcome to the Home Page!")
-}
+// func getCurrentOutTraffic(w http.ResponseWriter, r *http.Request) {
+// 	fmt.Fprintf(w, "%s/s", humanize.Bytes(uint64(Reporter.GetBandwidthTotals().RateOut)))
+// }
 
-func getCurrentOutTraffic(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "%s/s", humanize.Bytes(uint64(Reporter.GetBandwidthTotals().RateOut)))
-}
-
+// Take video and thumbnail from multipart form data, transfer it to the disk, convert it to HLS, then pin it with IPFS.
 func uploadVideo(w http.ResponseWriter, r *http.Request) {
 	// Parse multipart form data
 	err := r.ParseMultipartForm(multipartMaxMemory)
@@ -77,6 +72,7 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Failed opening video file for writing: %s", err)
 	}
 
+	// Buffer of 1MiB for transferring the file to disk
 	buf := make([]byte, 1<<20)
 	for endOfFile := false; !endOfFile; {
 		_, err := video.Read(buf)
@@ -128,6 +124,7 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 	go asyncVideoUpload(videoFilename, thumbnailFilename, videoUUID)
 }
 
+// Transcode and pin video asynchronously while dapper continues to listen for requests
 func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	ctx := context.Background()
 	defer ctx.Done()
@@ -177,6 +174,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	fmt.Printf("Video finished transcoding.\n")
 }
 
+// Simple file copy function
 func fileCopy(src, dst string) error {
 	sourceFileStat, err := os.Stat(src)
 	if err != nil {

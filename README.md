@@ -1,6 +1,6 @@
 # dapper
 
-[![Build Status](https://travis-ci.org/gatsby-tv/dapper.svg?branch=main)](https://travis-ci.org/gatsby-tv/dapper)
+[![Build Status](https://travis-ci.com/gatsby-tv/dapper.svg?branch=main)](https://travis-ci.com/gatsby-tv/dapper)
 
 Tool for adding and hosting videos on GatsbyTV.
 

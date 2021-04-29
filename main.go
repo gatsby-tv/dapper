@@ -49,6 +49,7 @@ func main() {
 	startDaemon(daemonPort)
 }
 
+// Read in config values to viper and check that necessary values are set
 func readConfigFile() {
 	viper.SetConfigName(configFileName)
 	viper.SetConfigType(configFileExtension)
@@ -76,6 +77,7 @@ func readConfigFile() {
 	}
 }
 
+// Setup IPFS and start listening for requests
 func startDaemon(port int) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

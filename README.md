@@ -1,5 +1,7 @@
 # dapper
 
+[![Build Status](https://travis-ci.org/gatsby-tv/dapper.svg?branch=main)](https://travis-ci.org/gatsby-tv/dapper)
+
 Tool for adding and hosting videos on GatsbyTV.
 
 Dapper uses IPFS to place content onto the network. It supports using an existing IPFS node to pin content, but also has the ability to run the IPFS node internally.

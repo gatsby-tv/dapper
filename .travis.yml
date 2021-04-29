@@ -1,0 +1,20 @@
+language: go
+go: 1.16.3
+services: docker
+
+stages:
+  - publish
+
+branches:
+  only:
+    - master
+
+jobs:
+  include:
+    - stage: publish
+      before_script:
+        - docker build -t gatsbytv/dapper .
+        - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USER" --password-stdin
+
+      script:
+        - docker tag gatsbytv/dapper gatsbytv/dapper:latest

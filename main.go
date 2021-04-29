@@ -44,7 +44,6 @@ var rootCmd = &cmds.Command{
 	},
 	Subcommands: map[string]*cmds.Command{
 		"daemon": daemonCmd,
-		"upload": uploadCmd,
 	},
 	Run: func(r *cmds.Request, re cmds.ResponseEmitter, e cmds.Environment) error {
 		cli.HandleHelp("dapper", r, os.Stdout)

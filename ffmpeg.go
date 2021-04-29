@@ -9,7 +9,6 @@ import (
 	"path"
 	"strconv"
 
-	"github.com/google/uuid"
 	"github.com/spf13/viper"
 )
 
@@ -33,9 +32,9 @@ func getVideoLength(videoFile string) (videoLength int, err error) {
 	return videoLength, nil
 }
 
-func convertToHLS(videoFile string) (videoFolder string, err error) {
+func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 	// Create folder to store HLS video in
-	videoFolder = path.Join(viper.GetString("Videos.videoStorageFolder"), uuid.New().String())
+	videoFolder = path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoUUID)
 	err = os.Mkdir(videoFolder, 0755)
 	if err != nil {
 		return "", err

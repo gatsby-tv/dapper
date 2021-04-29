@@ -2,7 +2,7 @@
 # The location to store all transcoded video data.
 # If using dapper as the IPFS node, this is where the content will be read from for distributing.
 # If not specified, the users Videos folder in their home is used ($HOME/Videos).
-videoStorageFolder = "/home/nesbitt/Videos"
+TempVideoStorageFolder = "/home/nesbitt/Videos"
 
 [ffmpeg]
 # The location of the ffmpeg binary.

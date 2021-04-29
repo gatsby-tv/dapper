@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 
 	"github.com/dustin/go-humanize"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -21,7 +22,6 @@ type newVideoRequestBody struct {
 	Description   string `json:"Description"`
 	VideoFile     string `json:"VideoFile"`
 	ThumbnailFile string `json:"ThumbnailFile"`
-	Channel       string `json:"Channel"`
 }
 
 type thumbnailData struct {
@@ -59,13 +59,15 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "Starting transcode of video file.")
+	videoUUID := uuid.New().String()
+
+	fmt.Fprintf(w, videoUUID)
 
 	// Run rest of video upload async
-	go asyncVideoUpload(videoToUpload)
+	go asyncVideoUpload(videoToUpload, videoUUID)
 }
 
-func asyncVideoUpload(videoToUpload newVideoRequestBody) {
+func asyncVideoUpload(videoToUpload newVideoRequestBody, videoUUID string) {
 	ctx := context.Background()
 	defer ctx.Done()
 
@@ -78,7 +80,7 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody) {
 
 	fmt.Printf("Video Length: %d", videoLength)
 
-	videoFolder, err := convertToHLS(videoToUpload.VideoFile)
+	videoFolder, err := convertToHLS(videoToUpload.VideoFile, videoUUID)
 	if err != nil {
 		fmt.Printf("Unable to convert video to HLS: %s\n", err)
 		return
@@ -90,8 +92,7 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody) {
 		return
 	}
 
-	// Process data into upload request for WestEgg
-
+	// Add video to IPFS
 	videoCID, err := addFolderToIPFS(ctx, videoFolder)
 	if err != nil {
 		fmt.Printf("Unable to add video folder to IPFS: %s\n", err)
@@ -100,17 +101,10 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody) {
 
 	thumbnailLocation := videoCID + "/thumbnail" + thumbnailFileExtension
 
-	// newVideo := westeggNewVideoRequestBody{
-	// 	Title:   videoToUpload.Title,
-	// 	VidLen:  videoLength,
-	// 	VidHash: videoCID,
-	// 	Thumbnail: thumbnailData{
-	// 		ThumbHash: thumbnailLocation,
-	// 		MimeType:  mime.TypeByExtension(thumbnailFileExtension),
-	// 	},
-	// 	Channel: videoToUpload.Channel,
-	// }
+	// Remove converted video folder
+	err = os.RemoveAll(videoFolder)
 
+	// TODO: Handle video data
 	fmt.Printf("Video CID: %s\nThumbnail CID: %s\n", videoCID, thumbnailLocation)
 	fmt.Printf("Video finished transcoding.\n")
 }
@@ -139,3 +133,5 @@ func fileCopy(src, dst string) error {
 	_, err = io.Copy(destination, source)
 	return nil
 }
+
+// TODO: Add route(s) for pinging dapper for progress of transcodes

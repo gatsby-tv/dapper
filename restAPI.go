@@ -2,19 +2,19 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/spf13/viper"
 )
 
 type newVideoRequestBody struct {
@@ -28,6 +28,9 @@ type thumbnailData struct {
 	ThumbHash string `json:"hash"`
 	MimeType  string `json:"mimeType"`
 }
+
+const multipartMaxMemory = 50 << 20 // 50MiB
+const videoScratchFolder = "scratch"
 
 func handleRequests(port int) {
 	myRouter := mux.NewRouter().StrictSlash(true)
@@ -51,43 +54,105 @@ func getCurrentOutTraffic(w http.ResponseWriter, r *http.Request) {
 }
 
 func uploadVideo(w http.ResponseWriter, r *http.Request) {
-	reqBody, _ := ioutil.ReadAll(r.Body)
-	var videoToUpload newVideoRequestBody
-	err := json.Unmarshal(reqBody, &videoToUpload)
+	// Parse multipart form data
+	err := r.ParseMultipartForm(multipartMaxMemory)
 	if err != nil {
-		fmt.Fprintf(w, "Unable to unmarshal json body: %s", err)
-		return
+		fmt.Fprintf(w, "Error parsing multipart form data: %s", err)
 	}
 
+	video, videoHeader, err := r.FormFile("video")
+	if err != nil {
+		fmt.Fprintf(w, "Failed getting video from multipart form data: %s", err)
+	}
+
+	thumbnail, thumbnailHeader, err := r.FormFile("thumbnail")
+
+	// Write video to disk
 	videoUUID := uuid.New().String()
+
+	videoFilename := path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder, videoUUID+"."+strings.Split(videoHeader.Filename, ".")[len(strings.Split(videoHeader.Filename, "."))-1])
+
+	tempFile, err := os.Create(videoFilename)
+	if err != nil {
+		fmt.Fprintf(w, "Failed opening video file for writing: %s", err)
+	}
+
+	buf := make([]byte, 1<<20)
+	for endOfFile := false; !endOfFile; {
+		_, err := video.Read(buf)
+		if err == io.EOF {
+			endOfFile = true
+			continue
+		} else if err != nil {
+			fmt.Fprintf(w, "Error reading video from multipart form data: %s", err)
+		}
+
+		_, err = tempFile.Write(buf)
+		if err != nil {
+			fmt.Fprintf(w, "Error writing video to disk: %s", err)
+		}
+	}
+
+	video.Close()
+	tempFile.Close()
+
+	// Write thumbnail to disk
+	thumbnailFilename := path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder, videoUUID+"-thumbnail"+"."+strings.Split(thumbnailHeader.Filename, ".")[len(strings.Split(thumbnailHeader.Filename, "."))-1])
+
+	tempFile, err = os.Create(thumbnailFilename)
+	if err != nil {
+		fmt.Fprintf(w, "Failed opening thumbnail file for writing: %s", err)
+	}
+
+	for endOfFile := false; !endOfFile; {
+		_, err := thumbnail.Read(buf)
+		if err == io.EOF {
+			endOfFile = true
+			continue
+		} else if err != nil {
+			fmt.Fprintf(w, "Error reading video from multipart form data: %s", err)
+		}
+
+		_, err = tempFile.Write(buf)
+		if err != nil {
+			fmt.Fprintf(w, "Error writing video to disk: %s", err)
+		}
+	}
+
+	thumbnail.Close()
+	tempFile.Close()
 
 	fmt.Fprintf(w, videoUUID)
 
 	// Run rest of video upload async
-	go asyncVideoUpload(videoToUpload, videoUUID)
+	go asyncVideoUpload(videoFilename, thumbnailFilename, videoUUID)
 }
 
-func asyncVideoUpload(videoToUpload newVideoRequestBody, videoUUID string) {
+func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	ctx := context.Background()
 	defer ctx.Done()
 
 	// Convert video to HLS pieces
-	videoLength, err := getVideoLength(videoToUpload.VideoFile)
+	videoLength, err := getVideoLength(video)
 	if err != nil {
 		fmt.Printf("Unable to get video length: %s\n", err)
 		return
 	}
 
-	fmt.Printf("Video Length: %d", videoLength)
+	// TODO: Save this for reference with progress route
+	fmt.Printf("Video Length: %d\n", videoLength)
 
-	videoFolder, err := convertToHLS(videoToUpload.VideoFile, videoUUID)
+	videoFolder, err := convertToHLS(video, videoUUID)
 	if err != nil {
 		fmt.Printf("Unable to convert video to HLS: %s\n", err)
 		return
 	}
 
-	thumbnailFileExtension := filepath.Ext(videoToUpload.ThumbnailFile)
-	if err = fileCopy(videoToUpload.ThumbnailFile, path.Join(videoFolder, "thumbnail"+thumbnailFileExtension)); err != nil {
+	// Remove scratch video file
+	os.Remove(video)
+
+	thumbnailFileExtension := filepath.Ext(thumbnail)
+	if err = fileCopy(thumbnail, path.Join(videoFolder, "thumbnail"+thumbnailFileExtension)); err != nil {
 		fmt.Printf("Unable to copy thumbnail file: %s\n", err)
 		return
 	}
@@ -98,6 +163,9 @@ func asyncVideoUpload(videoToUpload newVideoRequestBody, videoUUID string) {
 		fmt.Printf("Unable to add video folder to IPFS: %s\n", err)
 		return
 	}
+
+	// Remove scratch thumbnail file
+	os.Remove(thumbnail)
 
 	thumbnailLocation := videoCID + "/thumbnail" + thumbnailFileExtension
 

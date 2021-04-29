@@ -1,0 +1,11 @@
+# Configuration values specific to the docker container for dapper
+
+[Videos]
+TempVideoStorageFolder = "/scratch"
+
+[ffmpeg]
+ffmpegDir = "/usr/local/bin/ffmpeg"
+ffprobeDir = "/usr/local/bin/ffprobe"
+
+[IPFS]
+ipfsRepoDir = "/ipfs"

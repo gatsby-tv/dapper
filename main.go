@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -31,14 +32,16 @@ const configFileExtension = "toml"
 
 func main() {
 	readConfigFile()
-	var daemonPort int
-	// TODO: Change to traditional command line args
-	// if portOption := r.Options["p"]; portOption == nil {
-	daemonPort = 10000
-	// } else {
-	// 	daemonPort = r.Options["p"].(int)
-	// }
 
+	portPtr := flag.Int("p", 10000, "Port to listen for requests on.")
+	flag.Parse()
+
+	// Verify the given port is a valid port number
+	if *portPtr < 1 || *portPtr > 65535 {
+		log.Fatal("Invalid port specified.")
+	}
+
+	// Create video scratch path if it does not exist
 	if _, err := os.Stat(path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder)); os.IsNotExist(err) {
 		err := os.Mkdir(path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder), 0755)
 		if err != nil {
@@ -46,7 +49,7 @@ func main() {
 		}
 	}
 
-	startDaemon(daemonPort)
+	startDaemon(*portPtr)
 }
 
 // Read in config values to viper and check that necessary values are set

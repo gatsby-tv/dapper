@@ -16,13 +16,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-type newVideoRequestBody struct {
-	Title         string `json:"Title"`
-	Description   string `json:"Description"`
-	VideoFile     string `json:"VideoFile"`
-	ThumbnailFile string `json:"ThumbnailFile"`
-}
-
 type thumbnailData struct {
 	ThumbHash string `json:"hash"`
 	MimeType  string `json:"mimeType"`

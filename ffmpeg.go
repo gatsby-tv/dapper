@@ -29,8 +29,7 @@ type EncodingVideo struct {
 	CID             string
 }
 
-var videoResolutions = []string{"426x240", "640x360", "854x480", "1280x720", "1920x1080"}
-var resolutionFfmpegParts = map[string]string{"426x240": "scale=w=426:h=240", "640x360": "scale=w=640:h=360", "854x480": "scale=w=854:h=480", "1280x720": "scale=w=1280:h=720", "1920x1080": "scale=w=1920:h=1080"}
+var videoResolutions = []int{426, 640, 854, 1280, 1920}
 
 var encodingVideos EncodingVideos
 
@@ -96,12 +95,25 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 		return "", err
 	}
 
-	maxResolutionIndex := 0
-
-	for ; videoResolution != videoResolutions[maxResolutionIndex]; maxResolutionIndex++ {
+	videoWidth, err := strconv.ParseInt(strings.Split(videoResolution, "x")[0], 10, 64)
+	if err != nil {
+		return "", err
+	}
+	videoHeight, err := strconv.ParseInt(strings.Split(videoResolution, "x")[1], 10, 64)
+	if err != nil {
+		return "", err
 	}
 
-	maxResolutionIndex++
+	aspectRatio := float64(videoHeight) / float64(videoWidth)
+
+	maxResolutionIndex := 0
+
+	for ; videoWidth > int64(videoResolutions[maxResolutionIndex]); maxResolutionIndex++ {
+	}
+
+	if videoWidth == int64(videoResolutions[maxResolutionIndex]) {
+		maxResolutionIndex++
+	}
 
 	outputResolutions := videoResolutions[0:maxResolutionIndex]
 	numResolutions := len(outputResolutions)
@@ -115,7 +127,12 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 	filterString += "; "
 
 	for i := 0; i < numResolutions; i++ {
-		filterString += fmt.Sprintf("[v%d]%s[v%dout]", i+1, resolutionFfmpegParts[outputResolutions[i]], i+1)
+		resolutionHeight := int(math.Floor(float64(videoResolutions[i]) * aspectRatio))
+		if resolutionHeight%2 != 0 {
+			resolutionHeight++
+		}
+
+		filterString += fmt.Sprintf("[v%d]scale=w=%d:h=%d[v%dout]", i+1, videoResolutions[i], resolutionHeight, i+1)
 
 		if i < numResolutions-1 {
 			filterString += "; "

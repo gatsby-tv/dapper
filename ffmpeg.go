@@ -158,10 +158,7 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 
 	ffmpegArgs = append(ffmpegArgs, streamMap, "-hls_playlist_type", "vod", "-hls_flags", "independent_segments", "-hls_segment_type", "mpegts", "-hls_segment_filename", path.Join(videoFolder, "stream_%v_data%02d.ts"), "-hls_time", "10", "-master_pl_name", "master.m3u8", "-f", "hls", path.Join(videoFolder, "stream_%v.m3u8"))
 
-	fmt.Println(ffmpegArgs)
 	// Convert video
-	// Possible resolutions: 1920x1080, 1280x720, 854x480, 640x360, 426x240
-	// ffmpeg -i /home/nesbitt/Videos/Raccoon.mp4 -loglevel error -progress - -nostats -filter_complex "[0:v]split=3[v1][v2][v3]; [v1]copy[v1out]; [v2]scale=w=1280:h=720[v2out]; [v3]scale=w=640:h=360[v3out]" -map "[v1out]" -map "[v2out]" -map "[v3out]" -map a:0 -c:a:0 aac -map a:0 -c:a:1 aac -map a:0 -c:a:2 aac -var_stream_map "v:0,a:0 v:1,a:1 v:2,a:2" -hls_playlist_type vod -hls_flags independent_segments -hls_segment_type mpegts -hls_segment_filename "stream_%v_data%02d.ts" -hls_time 10 -master_pl_name "master.m3u8" -f hls "stream_%v.m3u8"
 	cmd := exec.Command(viper.GetString("ffmpeg.ffmpegDir"), ffmpegArgs...)
 
 	fmt.Printf("Converting %s to HLS\n", videoFile)

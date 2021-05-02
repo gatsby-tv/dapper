@@ -29,6 +29,9 @@ type EncodingVideo struct {
 	CID             string
 }
 
+var videoResolutions = []string{"426x240", "640x360", "854x480", "1280x720", "1920x1080"}
+var resolutionFfmpegParts = map[string]string{"426x240": "scale=w=426:h=240", "640x360": "scale=w=640:h=360", "854x480": "scale=w=854:h=480", "1280x720": "scale=w=1280:h=720", "1920x1080": "scale=w=1920:h=1080"}
+
 var encodingVideos EncodingVideos
 
 // Uses `ffprobe` to find the length of the video in seconds (ceilinged ot next largest int)
@@ -66,6 +69,16 @@ func getVideoFrames(videoFile string, videoLength int) (int64, error) {
 	return int64(videoLength) * videoFPS, nil
 }
 
+func getVideoResolution(videoFile string) (string, error) {
+	cmd := exec.Command(viper.GetString("ffmpeg.ffprobeDir"), "-i", videoFile, "-show_entries", "stream=width,height", "-v", "quiet", "-of", `csv=s=x:p=0`)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", errors.New(string(out) + " | " + err.Error())
+	}
+
+	return strings.TrimSpace(string(out)), nil
+}
+
 // Converts the given video to HLS chunks and places them in a folder named with the video's UUID
 func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 	// Create folder to store HLS video in
@@ -75,8 +88,64 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 		return "", err
 	}
 
+	ffmpegArgs := []string{"-i", videoFile, "-loglevel", "error", "-progress", "-", "-nostats", "-filter_complex"}
+
+	// Determine resolutions to output
+	videoResolution, err := getVideoResolution(videoFile)
+	if err != nil {
+		return "", err
+	}
+
+	maxResolutionIndex := 0
+
+	for ; videoResolution != videoResolutions[maxResolutionIndex]; maxResolutionIndex++ {
+	}
+
+	maxResolutionIndex++
+
+	outputResolutions := videoResolutions[0:maxResolutionIndex]
+	numResolutions := len(outputResolutions)
+
+	filterString := fmt.Sprintf("[0:v]split=%d", numResolutions)
+
+	for i := 0; i < numResolutions; i++ {
+		filterString += fmt.Sprintf("[v%d]", i+1)
+	}
+
+	filterString += "; "
+
+	for i := 0; i < numResolutions; i++ {
+		filterString += fmt.Sprintf("[v%d]%s[v%dout]", i+1, resolutionFfmpegParts[outputResolutions[i]], i+1)
+
+		if i < numResolutions-1 {
+			filterString += "; "
+		}
+	}
+
+	ffmpegArgs = append(ffmpegArgs, filterString)
+
+	for i := 0; i < numResolutions; i++ {
+		ffmpegArgs = append(ffmpegArgs, "-map", fmt.Sprintf("[v%dout]", i+1), "-map", "a:0", fmt.Sprintf("-c:a:%d", i), "aac")
+	}
+
+	ffmpegArgs = append(ffmpegArgs, "-var_stream_map")
+
+	streamMap := ""
+	for i := 0; i < numResolutions; i++ {
+		streamMap += fmt.Sprintf("v:%d,a:%d", i, i)
+
+		if i < numResolutions-1 {
+			streamMap += " "
+		}
+	}
+
+	ffmpegArgs = append(ffmpegArgs, streamMap, "-hls_playlist_type", "vod", "-hls_flags", "independent_segments", "-hls_segment_type", "mpegts", "-hls_segment_filename", path.Join(videoFolder, "stream_%v_data%02d.ts"), "-hls_time", "10", "-master_pl_name", "master.m3u8", "-f", "hls", path.Join(videoFolder, "stream_%v.m3u8"))
+
+	fmt.Println(ffmpegArgs)
 	// Convert video
-	cmd := exec.Command(viper.GetString("ffmpeg.ffmpegDir"), "-i", videoFile, "-loglevel", "error", "-progress", "-", "-nostats", "-profile:v", "baseline", "-level", "3.0", "-s", "1920x1080", "-start_number", "0", "-hls_time", fmt.Sprint(HLSChunkLength), "-hls_list_size", "0", "-f", "hls", path.Join(videoFolder, "/master.m3u8"))
+	// Possible resolutions: 1920x1080, 1280x720, 854x480, 640x360, 426x240
+	// ffmpeg -i /home/nesbitt/Videos/Raccoon.mp4 -loglevel error -progress - -nostats -filter_complex "[0:v]split=3[v1][v2][v3]; [v1]copy[v1out]; [v2]scale=w=1280:h=720[v2out]; [v3]scale=w=640:h=360[v3out]" -map "[v1out]" -map "[v2out]" -map "[v3out]" -map a:0 -c:a:0 aac -map a:0 -c:a:1 aac -map a:0 -c:a:2 aac -var_stream_map "v:0,a:0 v:1,a:1 v:2,a:2" -hls_playlist_type vod -hls_flags independent_segments -hls_segment_type mpegts -hls_segment_filename "stream_%v_data%02d.ts" -hls_time 10 -master_pl_name "master.m3u8" -f hls "stream_%v.m3u8"
+	cmd := exec.Command(viper.GetString("ffmpeg.ffmpegDir"), ffmpegArgs...)
 
 	fmt.Printf("Converting %s to HLS\n", videoFile)
 	stdout, err := cmd.StdoutPipe()

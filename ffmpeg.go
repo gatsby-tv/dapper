@@ -78,30 +78,21 @@ func getVideoResolution(videoFile string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// Converts the given video to HLS chunks and places them in a folder named with the video's UUID
-func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
-	// Create folder to store HLS video in
-	videoFolder = path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoUUID)
-	err = os.Mkdir(videoFolder, 0755)
-	if err != nil {
-		return "", err
-	}
-
-	// Build ffmpeg command
+func buildFfmpegCommand(videoFile, videoFolder string) ([]string, error) {
 	ffmpegArgs := []string{"-i", videoFile, "-loglevel", "error", "-progress", "-", "-nostats", "-filter_complex"}
 
 	videoResolution, err := getVideoResolution(videoFile)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	videoWidth, err := strconv.ParseInt(strings.Split(videoResolution, "x")[0], 10, 64)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	videoHeight, err := strconv.ParseInt(strings.Split(videoResolution, "x")[1], 10, 64)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	aspectRatio := float64(videoHeight) / float64(videoWidth)
@@ -158,10 +149,27 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 
 	ffmpegArgs = append(ffmpegArgs, streamMap, "-hls_playlist_type", "vod", "-hls_flags", "independent_segments", "-hls_segment_type", "mpegts", "-hls_segment_filename", path.Join(videoFolder, "stream_%v_data%02d.ts"), "-hls_time", "10", "-master_pl_name", "master.m3u8", "-f", "hls", path.Join(videoFolder, "stream_%v.m3u8"))
 
+	return ffmpegArgs, nil
+}
+
+// Converts the given video to HLS chunks and places them in a folder named with the video's UUID
+func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
+	// Create folder to store HLS video in
+	videoFolder = path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoUUID)
+	err = os.Mkdir(videoFolder, 0755)
+	if err != nil {
+		return "", err
+	}
+
+	ffmpegArgs, err := buildFfmpegCommand(videoFile, videoFolder)
+	if err != nil {
+		return "", errors.New("Failed to build ffmpeg command: " + err.Error())
+	}
+
 	// Convert video
 	cmd := exec.Command(viper.GetString("ffmpeg.ffmpegDir"), ffmpegArgs...)
 
-	fmt.Printf("Converting %s to HLS\n", videoFile)
+	fmt.Printf("Converting %s to HLS...\n", videoFile)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", err

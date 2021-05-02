@@ -87,9 +87,9 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 		return "", err
 	}
 
+	// Build ffmpeg command
 	ffmpegArgs := []string{"-i", videoFile, "-loglevel", "error", "-progress", "-", "-nostats", "-filter_complex"}
 
-	// Determine resolutions to output
 	videoResolution, err := getVideoResolution(videoFile)
 	if err != nil {
 		return "", err

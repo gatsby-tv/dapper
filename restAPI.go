@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -16,9 +17,12 @@ import (
 	"github.com/spf13/viper"
 )
 
-type thumbnailData struct {
-	ThumbHash string `json:"hash"`
-	MimeType  string `json:"mimeType"`
+type VideoStartEncodingResponse struct {
+	ID string `json:"id"`
+}
+
+type VideoEncodingStatusResponse struct {
+	Progress int64 `json:"progress"`
 }
 
 const multipartMaxMemory = 50 << 20 // 50MiB
@@ -29,6 +33,7 @@ func handleRequests(port int) {
 
 	// GETs
 	// myRouter.HandleFunc("/traffic", getCurrentOutTraffic).Methods("GET")
+	myRouter.HandleFunc("/status", encodingStatus)
 
 	// POSTs
 	myRouter.HandleFunc("/video", uploadVideo).Methods("POST")
@@ -57,6 +62,8 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 
 	// Write video to disk
 	videoUUID := uuid.New().String()
+
+	videoResponse := VideoStartEncodingResponse{ID: videoUUID}
 
 	videoFilename := path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder, videoUUID+"."+strings.Split(videoHeader.Filename, ".")[len(strings.Split(videoHeader.Filename, "."))-1])
 
@@ -111,7 +118,7 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 	thumbnail.Close()
 	tempFile.Close()
 
-	fmt.Fprintf(w, videoUUID)
+	json.NewEncoder(w).Encode(videoResponse)
 
 	// Run rest of video upload async
 	go asyncVideoUpload(videoFilename, thumbnailFilename, videoUUID)
@@ -122,6 +129,8 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	ctx := context.Background()
 	defer ctx.Done()
 
+	encodingVideos.Videos[videoUUID] = EncodingVideo{TotalFrames: 1, CurrentProgress: 0}
+
 	// Convert video to HLS pieces
 	videoLength, err := getVideoLength(video)
 	if err != nil {
@@ -129,8 +138,13 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 		return
 	}
 
-	// TODO: Save this for reference with progress route
-	fmt.Printf("Video Length: %d\n", videoLength)
+	videoFrames, err := getVideoFrames(video, videoLength)
+	if err != nil {
+		fmt.Printf("Unable to count video frames: %s\n", err)
+		return
+	}
+
+	encodingVideos.Videos[videoUUID] = EncodingVideo{TotalFrames: videoFrames, CurrentProgress: 0}
 
 	videoFolder, err := convertToHLS(video, videoUUID)
 	if err != nil {
@@ -193,4 +207,19 @@ func fileCopy(src, dst string) error {
 	return nil
 }
 
-// TODO: Add route(s) for pinging dapper for progress of transcodes
+func encodingStatus(w http.ResponseWriter, r *http.Request) {
+	keys, ok := r.URL.Query()["id"]
+
+	if !ok || len(keys[0]) < 1 {
+		fmt.Fprintf(w, "Url Param 'id' is missing")
+		return
+	}
+
+	if progress, ok := encodingVideos.Videos[keys[0]]; ok {
+		statusResponse := VideoEncodingStatusResponse{Progress: progress.CurrentProgress}
+
+		json.NewEncoder(w).Encode(statusResponse)
+	} else {
+		fmt.Fprintf(w, "Specified ID is not transcoding.")
+	}
+}

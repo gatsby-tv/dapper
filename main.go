@@ -49,6 +49,8 @@ func main() {
 		}
 	}
 
+	encodingVideos.Videos = make(map[string]EncodingVideo)
+
 	startDaemon(*portPtr)
 }
 

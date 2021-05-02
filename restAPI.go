@@ -22,7 +22,9 @@ type VideoStartEncodingResponse struct {
 }
 
 type VideoEncodingStatusResponse struct {
-	Progress int64 `json:"progress"`
+	Finished bool   `json:"finished"`
+	Progress int64  `json:"progress"`
+	CID      string `json:"cid"`
 }
 
 const multipartMaxMemory = 50 << 20 // 50MiB
@@ -171,14 +173,16 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	// Remove scratch thumbnail file
 	os.Remove(thumbnail)
 
-	thumbnailLocation := videoCID + "/thumbnail" + thumbnailFileExtension
-
 	// Remove converted video folder
 	err = os.RemoveAll(videoFolder)
 
-	// TODO: Handle video data
-	fmt.Printf("Video CID: %s\nThumbnail CID: %s\n", videoCID, thumbnailLocation)
-	fmt.Printf("Video finished transcoding.\n")
+	// Update the map with the video CID
+	encodingVideos.mutex.Lock()
+	tempStruct := EncodingVideo{CID: videoCID, CurrentProgress: -1}
+	encodingVideos.Videos[videoUUID] = tempStruct
+	encodingVideos.mutex.Unlock()
+
+	fmt.Printf("Finished transcoding %s.\n", video)
 }
 
 // Simple file copy function
@@ -207,18 +211,32 @@ func fileCopy(src, dst string) error {
 	return nil
 }
 
+// Returns the status of the encoding job or CID if it is completed
 func encodingStatus(w http.ResponseWriter, r *http.Request) {
 	keys, ok := r.URL.Query()["id"]
 
+	// Check that the id param was given
 	if !ok || len(keys[0]) < 1 {
 		fmt.Fprintf(w, "Url Param 'id' is missing")
 		return
 	}
 
+	// Check that the video is in the encoding map
 	if progress, ok := encodingVideos.Videos[keys[0]]; ok {
-		statusResponse := VideoEncodingStatusResponse{Progress: progress.CurrentProgress}
+		// Check if the encode has finished
+		if progress.CurrentProgress == -1 {
+			statusResponse := VideoEncodingStatusResponse{Finished: true, CID: encodingVideos.Videos[keys[0]].CID}
 
-		json.NewEncoder(w).Encode(statusResponse)
+			json.NewEncoder(w).Encode(statusResponse)
+
+			encodingVideos.mutex.Lock()
+			delete(encodingVideos.Videos, keys[0])
+			encodingVideos.mutex.Unlock()
+		} else {
+			statusResponse := VideoEncodingStatusResponse{Finished: false, Progress: progress.CurrentProgress}
+
+			json.NewEncoder(w).Encode(statusResponse)
+		}
 	} else {
 		fmt.Fprintf(w, "Specified ID is not transcoding.")
 	}

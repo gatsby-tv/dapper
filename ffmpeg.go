@@ -26,6 +26,7 @@ type EncodingVideos struct {
 type EncodingVideo struct {
 	TotalFrames     int64
 	CurrentProgress int64
+	CID             string
 }
 
 var encodingVideos EncodingVideos
@@ -48,6 +49,7 @@ func getVideoLength(videoFile string) (videoLength int, err error) {
 	return videoLength, nil
 }
 
+// Gets the number of frames in the given video
 func getVideoFrames(videoFile string, videoLength int) (int64, error) {
 	cmd := exec.Command(viper.GetString("ffmpeg.ffprobeDir"), "-i", videoFile, "-show_entries", "stream=r_frame_rate", "-v", "error", "-of", `default=nokey=1:noprint_wrappers=1`, "-select_streams", "v:0")
 	out, err := cmd.CombinedOutput()
@@ -96,6 +98,7 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 	return videoFolder, nil
 }
 
+// Updates the encoding map with the progress of the video encode job
 func updateEncodeFrameProgress(ffmpegStdOut io.ReadCloser, videoUUID string) {
 	buf := make([]byte, 1<<10)
 	for endOfFile := false; !endOfFile; {
@@ -109,24 +112,25 @@ func updateEncodeFrameProgress(ffmpegStdOut io.ReadCloser, videoUUID string) {
 			continue
 		}
 
+		// Take the frame count out of the output of ffmpeg
 		output := string(buf)
-
 		frameLine := strings.Split(output, "\n")[0]
 		frameCountStr := strings.Split(frameLine, "=")[1]
-
 		frameCount, _ := strconv.ParseInt(frameCountStr, 10, 64)
 
 		encodingVideos.mutex.Lock()
-
+		// Calculate the progress percentage
 		encodingProgress := int64(math.Floor(float64(frameCount) * 100 / float64(encodingVideos.Videos[videoUUID].TotalFrames)))
-
+		// Update the encoding map
 		tempStruct := EncodingVideo{TotalFrames: encodingVideos.Videos[videoUUID].TotalFrames, CurrentProgress: encodingProgress}
 		encodingVideos.Videos[videoUUID] = tempStruct
-
 		encodingVideos.mutex.Unlock()
 	}
 
+	// When the stdout reader is closed, ffmpeg has finished
+	// Update the encoding map to signal that the job has completed
 	encodingVideos.mutex.Lock()
-	delete(encodingVideos.Videos, videoUUID)
+	tempStruct := EncodingVideo{TotalFrames: encodingVideos.Videos[videoUUID].TotalFrames, CurrentProgress: -1}
+	encodingVideos.Videos[videoUUID] = tempStruct
 	encodingVideos.mutex.Unlock()
 }

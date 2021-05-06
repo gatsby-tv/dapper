@@ -255,11 +255,13 @@ func encodingStatus(w http.ResponseWriter, r *http.Request) {
 			encodingVideos.mutex.Lock()
 			delete(encodingVideos.Videos, keys[0])
 			encodingVideos.mutex.Unlock()
+			return
 		} else {
 			statusResponse := VideoEncodingStatusResponse{Finished: false, Progress: progress.CurrentProgress}
 
 			w.WriteHeader(http.StatusAccepted)
 			json.NewEncoder(w).Encode(statusResponse)
+			return
 		}
 	} else {
 		w.WriteHeader(http.StatusNotFound)

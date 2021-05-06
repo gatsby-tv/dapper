@@ -52,15 +52,24 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 	// Parse multipart form data
 	err := r.ParseMultipartForm(multipartMaxMemory)
 	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "Error parsing multipart form data: %s", err)
+		return
 	}
 
 	video, videoHeader, err := r.FormFile("video")
 	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "Failed getting video from multipart form data: %s", err)
+		return
 	}
 
 	thumbnail, thumbnailHeader, err := r.FormFile("thumbnail")
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "Failed getting thumbnail from multipart form data: %s", err)
+		return
+	}
 
 	// Write video to disk
 	videoUUID := uuid.New().String()
@@ -71,7 +80,9 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 
 	tempFile, err := os.Create(videoFilename)
 	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, "Failed opening video file for writing: %s", err)
+		return
 	}
 
 	// Buffer of 1MiB for transferring the file to disk
@@ -82,12 +93,16 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 			endOfFile = true
 			continue
 		} else if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "Error reading video from multipart form data: %s", err)
+			return
 		}
 
 		_, err = tempFile.Write(buf)
 		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "Error writing video to disk: %s", err)
+			return
 		}
 	}
 
@@ -99,7 +114,9 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 
 	tempFile, err = os.Create(thumbnailFilename)
 	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, "Failed opening thumbnail file for writing: %s", err)
+		return
 	}
 
 	for endOfFile := false; !endOfFile; {
@@ -108,12 +125,16 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 			endOfFile = true
 			continue
 		} else if err != nil {
-			fmt.Fprintf(w, "Error reading video from multipart form data: %s", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "Error reading thumbnail from multipart form data: %s", err)
+			return
 		}
 
 		_, err = tempFile.Write(buf)
 		if err != nil {
-			fmt.Fprintf(w, "Error writing video to disk: %s", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "Error writing thumbnail to disk: %s", err)
+			return
 		}
 	}
 
@@ -217,6 +238,7 @@ func encodingStatus(w http.ResponseWriter, r *http.Request) {
 
 	// Check that the id param was given
 	if !ok || len(keys[0]) < 1 {
+		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, "Url Param 'id' is missing")
 		return
 	}
@@ -227,6 +249,7 @@ func encodingStatus(w http.ResponseWriter, r *http.Request) {
 		if progress.CurrentProgress == -1 {
 			statusResponse := VideoEncodingStatusResponse{Finished: true, CID: encodingVideos.Videos[keys[0]].CID}
 
+			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(statusResponse)
 
 			encodingVideos.mutex.Lock()
@@ -235,9 +258,12 @@ func encodingStatus(w http.ResponseWriter, r *http.Request) {
 		} else {
 			statusResponse := VideoEncodingStatusResponse{Finished: false, Progress: progress.CurrentProgress}
 
+			w.WriteHeader(http.StatusAccepted)
 			json.NewEncoder(w).Encode(statusResponse)
 		}
 	} else {
+		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Specified ID is not transcoding.")
+		return
 	}
 }

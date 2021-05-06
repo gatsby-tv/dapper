@@ -192,30 +192,13 @@ func fileCopy(src, dst string) error {
 
 // Writes given multipart form data object to the file specified
 func writeMultiPartFormDataToDisk(multipartFormData io.ReadCloser, destFile string) error {
-	// Buffer of 1MiB for transferring the file to disk
-	buf := make([]byte, 1<<20)
-
 	tempFile, err := os.Create(destFile)
 	if err != nil {
 		return err
 	}
+	defer tempFile.Close()
 
-	for endOfFile := false; !endOfFile; {
-		_, err := multipartFormData.Read(buf)
-		if err == io.EOF {
-			endOfFile = true
-			continue
-		} else if err != nil {
-			return err
-		}
-
-		_, err = tempFile.Write(buf)
-		if err != nil {
-			return err
-		}
-	}
-
-	tempFile.Close()
+	io.Copy(tempFile, multipartFormData)
 
 	return nil
 }

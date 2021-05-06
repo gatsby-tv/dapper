@@ -78,68 +78,26 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 
 	videoFilename := path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder, videoUUID+"."+strings.Split(videoHeader.Filename, ".")[len(strings.Split(videoHeader.Filename, "."))-1])
 
-	tempFile, err := os.Create(videoFilename)
+	err = writeMultiPartFormDataToDisk(video, videoFilename)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed opening video file for writing: %s", err)
+		fmt.Fprintf(w, "Failed writing video to disk: %s", err)
 		return
 	}
 
-	// Buffer of 1MiB for transferring the file to disk
-	buf := make([]byte, 1<<20)
-	for endOfFile := false; !endOfFile; {
-		_, err := video.Read(buf)
-		if err == io.EOF {
-			endOfFile = true
-			continue
-		} else if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, "Error reading video from multipart form data: %s", err)
-			return
-		}
-
-		_, err = tempFile.Write(buf)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, "Error writing video to disk: %s", err)
-			return
-		}
-	}
-
 	video.Close()
-	tempFile.Close()
 
 	// Write thumbnail to disk
 	thumbnailFilename := path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder, videoUUID+"-thumbnail"+"."+strings.Split(thumbnailHeader.Filename, ".")[len(strings.Split(thumbnailHeader.Filename, "."))-1])
 
-	tempFile, err = os.Create(thumbnailFilename)
+	err = writeMultiPartFormDataToDisk(thumbnail, thumbnailFilename)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed opening thumbnail file for writing: %s", err)
+		fmt.Fprintf(w, "Failed writing thumbnail to disk: %s", err)
 		return
 	}
 
-	for endOfFile := false; !endOfFile; {
-		_, err := thumbnail.Read(buf)
-		if err == io.EOF {
-			endOfFile = true
-			continue
-		} else if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, "Error reading thumbnail from multipart form data: %s", err)
-			return
-		}
-
-		_, err = tempFile.Write(buf)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, "Error writing thumbnail to disk: %s", err)
-			return
-		}
-	}
-
 	thumbnail.Close()
-	tempFile.Close()
 
 	json.NewEncoder(w).Encode(videoResponse)
 
@@ -229,6 +187,36 @@ func fileCopy(src, dst string) error {
 	}
 	defer destination.Close()
 	_, err = io.Copy(destination, source)
+	return nil
+}
+
+// Writes given multipart form data object to the file specified
+func writeMultiPartFormDataToDisk(multipartFormData io.ReadCloser, destFile string) error {
+	// Buffer of 1MiB for transferring the file to disk
+	buf := make([]byte, 1<<20)
+
+	tempFile, err := os.Create(destFile)
+	if err != nil {
+		return err
+	}
+
+	for endOfFile := false; !endOfFile; {
+		_, err := multipartFormData.Read(buf)
+		if err == io.EOF {
+			endOfFile = true
+			continue
+		} else if err != nil {
+			return err
+		}
+
+		_, err = tempFile.Write(buf)
+		if err != nil {
+			return err
+		}
+	}
+
+	tempFile.Close()
+
 	return nil
 }
 

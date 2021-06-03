@@ -8,7 +8,6 @@ import (
 	"os"
 	"path"
 
-	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
 )
 
@@ -66,7 +65,7 @@ func readConfigFile() {
 
 	// Verify necessary config values are set
 	if videoDir := viper.GetString("Videos.TempVideoStorageFolder"); videoDir == "" {
-		videoDir, err = homedir.Dir()
+		videoDir, err = os.MkdirTemp(os.TempDir(), "dapper-*")
 		if err != nil {
 			log.Fatal(err)
 		}

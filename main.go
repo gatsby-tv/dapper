@@ -69,7 +69,7 @@ func readConfigFile() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		viper.Set("Videos.TempVideoStorageFolder", path.Join(videoDir, "Videos"))
+		viper.Set("Videos.TempVideoStorageFolder", videoDir)
 	}
 
 	if ffmpegDir := viper.GetString("ffmpeg.ffmpegDir"); ffmpegDir == "" {

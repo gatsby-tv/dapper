@@ -58,14 +58,18 @@ func readConfigFile() {
 	viper.SetConfigName(configFileName)
 	viper.SetConfigType(configFileExtension)
 	viper.AddConfigPath(configFileLocation)
-	err := viper.ReadInConfig()
-	if err != nil {
-		log.Fatal(err)
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			// Config file not found ignore error and use defaults
+			fmt.Println("Configuration file not found, using defaults.")
+		} else {
+			log.Fatal(err)
+		}
 	}
 
 	// Verify necessary config values are set
 	if videoDir := viper.GetString("Videos.TempVideoStorageFolder"); videoDir == "" {
-		videoDir, err = os.MkdirTemp(os.TempDir(), "dapper-*")
+		videoDir, err := os.MkdirTemp(os.TempDir(), "dapper-*")
 		if err != nil {
 			log.Fatal(err)
 		}

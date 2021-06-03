@@ -11,15 +11,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-type loginRequestBody struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-type loginResponse struct {
-	Token string `json:"token"`
-}
-
 // Folder to search for config file
 const configFileLocation = "."
 

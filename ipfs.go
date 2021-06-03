@@ -363,6 +363,9 @@ func startIPFS(ctx context.Context) error {
 	// check if a node is running on the system.
 	if ipfsURI == "" {
 		defaultIPFSRoot, err := config.PathRoot()
+		if err != nil {
+			return err
+		}
 		ipfsRunning, err := checkIPFSDirLocked(defaultIPFSRoot)
 		if err != nil {
 			return err

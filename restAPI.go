@@ -171,6 +171,9 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 
 	// Remove converted video folder
 	err = os.RemoveAll(videoFolder)
+	if err != nil {
+		fmt.Printf("Failed removing video folder: %s", err)
+	}
 
 	// Update the map with the video CID
 	encodingVideos.mutex.Lock()
@@ -204,6 +207,9 @@ func fileCopy(src, dst string) error {
 	}
 	defer destination.Close()
 	_, err = io.Copy(destination, source)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

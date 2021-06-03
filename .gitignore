@@ -17,3 +17,6 @@ dapper
 
 # Test config file
 *.toml
+
+# Installers
+*.msi

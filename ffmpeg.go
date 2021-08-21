@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -199,6 +200,10 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 	if err != nil {
 		return "", err
 	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return "", err
+	}
 	err = cmd.Start()
 	if err != nil {
 		return "", err
@@ -206,6 +211,7 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 
 	// Create a listener for ffmpeg's output to update `encodingVideos`
 	go updateEncodeFrameProgress(stdout, videoUUID)
+	go logStdErr(stderr)
 
 	err = cmd.Wait()
 	if err != nil {
@@ -218,6 +224,14 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 	}
 
 	return videoFolder, nil
+}
+
+func logStdErr(ffmpegStdErr io.ReadCloser) {
+	scanner := bufio.NewScanner(ffmpegStdErr)
+	fmt.Println("ffmpeg stderr:")
+	for scanner.Scan() {
+		fmt.Println(scanner.Text())
+	}
 }
 
 // Updates the encoding map with the progress of the video encode job
@@ -239,7 +253,12 @@ func updateEncodeFrameProgress(ffmpegStdOut io.ReadCloser, videoUUID string) {
 		output := string(buf)
 		frameLine := strings.Split(output, "\n")[0]
 		frameCountStr := strings.Split(frameLine, "=")[1]
-		frameCount, _ := strconv.ParseInt(frameCountStr, 10, 64)
+		frameCount, err := strconv.ParseInt(frameCountStr, 10, 64)
+		if err != nil {
+			fmt.Printf("Error updating video progress: %s\n", err)
+			endOfFile = true
+			continue
+		}
 
 		encodingVideos.mutex.Lock()
 		// Calculate the progress percentage

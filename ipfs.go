@@ -186,20 +186,12 @@ func getUnixfsNode(path string) (files.Node, error) {
 /// ------
 // *** End of functions from go-ipfs/docs/examples/go-ipfs-as-a-library ***
 
-func addFolderToIPFS(ctx context.Context, path string) (folderCID string, err error) {
+func addFolderToIPFS(ctx context.Context, path string) (string, error) {
 	if useExistingIPFSNode {
-		folderCID, err = addFolderToRemoteIPFS(path)
-		if err != nil {
-			return "", err
-		}
+		return addFolderToRemoteIPFS(path)
 	} else {
-		folderCID, err = addFolderToDapperIPFS(ctx, path)
-		if err != nil {
-			return "", err
-		}
+		return addFolderToDapperIPFS(ctx, path)
 	}
-
-	return folderCID, nil
 }
 
 func addFolderToDapperIPFS(ctx context.Context, path string) (string, error) {
@@ -404,7 +396,6 @@ func startIPFS(ctx context.Context) error {
 
 			fmt.Println("Internal IPFS node is running")
 
-			// TODO: Custom bootstrap nodes
 			bootstrapNodes := []string{
 				// IPFS Bootstrapper nodes.
 				"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",

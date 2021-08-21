@@ -404,7 +404,6 @@ func startIPFS(ctx context.Context) error {
 
 			fmt.Println("Internal IPFS node is running")
 
-			// TODO: Custom bootstrap nodes
 			bootstrapNodes := []string{
 				// IPFS Bootstrapper nodes.
 				"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",

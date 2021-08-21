@@ -52,9 +52,53 @@ func handleRequests(port int) {
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), myRouter))
 }
 
+// Routes
+
+// GETs
+
+// Returns the status of the encoding job or CID if it is completed
+func encodingStatus(w http.ResponseWriter, r *http.Request) {
+	keys, ok := r.URL.Query()["id"]
+
+	// Check that the id param was given
+	if !ok || len(keys[0]) < 1 {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "Url Param 'id' is missing")
+		return
+	}
+
+	// Check that the video is in the encoding map
+	if progress, ok := encodingVideos.Videos[keys[0]]; ok {
+		// Check if the encode has finished
+		if progress.CurrentProgress == -1 {
+			encodingVideos.mutex.Lock()
+			statusResponse := VideoEncodingStatusResponse{Finished: true, CID: encodingVideos.Videos[keys[0]].CID}
+
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(statusResponse)
+
+			delete(encodingVideos.Videos, keys[0])
+			encodingVideos.mutex.Unlock()
+			return
+		} else {
+			statusResponse := VideoEncodingStatusResponse{Finished: false, Progress: progress.CurrentProgress}
+
+			w.WriteHeader(http.StatusAccepted)
+			json.NewEncoder(w).Encode(statusResponse)
+			return
+		}
+	} else {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "Specified ID is not transcoding.")
+		return
+	}
+}
+
 // func getCurrentOutTraffic(w http.ResponseWriter, r *http.Request) {
 // 	fmt.Fprintf(w, "%s/s", humanize.Bytes(uint64(Reporter.GetBandwidthTotals().RateOut)))
 // }
+
+// POSTs
 
 // Take video and thumbnail from multipart form data, transfer it to the disk, convert it to HLS, then pin it with IPFS.
 func uploadVideo(w http.ResponseWriter, r *http.Request) {
@@ -112,6 +156,8 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 	// Run rest of video upload async
 	go asyncVideoUpload(videoFilename, thumbnailFilename, videoUUID)
 }
+
+// Private Functions
 
 // Transcode and pin video asynchronously while dapper continues to listen for requests
 func asyncVideoUpload(video, thumbnail, videoUUID string) {
@@ -184,6 +230,19 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	fmt.Printf("Finished transcoding %s.\n", video)
 }
 
+// Writes given multipart form data object to the file specified
+func writeMultiPartFormDataToDisk(multipartFormData io.ReadCloser, destFile string) error {
+	tempFile, err := os.Create(destFile)
+	if err != nil {
+		return err
+	}
+	defer tempFile.Close()
+
+	io.Copy(tempFile, multipartFormData)
+
+	return nil
+}
+
 // Simple file copy function
 func fileCopy(src, dst string) error {
 	sourceFileStat, err := os.Stat(src)
@@ -211,55 +270,4 @@ func fileCopy(src, dst string) error {
 		return err
 	}
 	return nil
-}
-
-// Writes given multipart form data object to the file specified
-func writeMultiPartFormDataToDisk(multipartFormData io.ReadCloser, destFile string) error {
-	tempFile, err := os.Create(destFile)
-	if err != nil {
-		return err
-	}
-	defer tempFile.Close()
-
-	io.Copy(tempFile, multipartFormData)
-
-	return nil
-}
-
-// Returns the status of the encoding job or CID if it is completed
-func encodingStatus(w http.ResponseWriter, r *http.Request) {
-	keys, ok := r.URL.Query()["id"]
-
-	// Check that the id param was given
-	if !ok || len(keys[0]) < 1 {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Url Param 'id' is missing")
-		return
-	}
-
-	// Check that the video is in the encoding map
-	if progress, ok := encodingVideos.Videos[keys[0]]; ok {
-		// Check if the encode has finished
-		if progress.CurrentProgress == -1 {
-			statusResponse := VideoEncodingStatusResponse{Finished: true, CID: encodingVideos.Videos[keys[0]].CID}
-
-			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(statusResponse)
-
-			encodingVideos.mutex.Lock()
-			delete(encodingVideos.Videos, keys[0])
-			encodingVideos.mutex.Unlock()
-			return
-		} else {
-			statusResponse := VideoEncodingStatusResponse{Finished: false, Progress: progress.CurrentProgress}
-
-			w.WriteHeader(http.StatusAccepted)
-			json.NewEncoder(w).Encode(statusResponse)
-			return
-		}
-	} else {
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "Specified ID is not transcoding.")
-		return
-	}
 }

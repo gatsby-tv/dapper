@@ -272,7 +272,7 @@ func updateEncodeFrameProgress(ffmpegStdOut io.ReadCloser, videoUUID string) {
 	// When the stdout reader is closed, ffmpeg has finished
 	// Update the encoding map to signal that the job has completed
 	encodingVideos.mutex.Lock()
-	tempStruct := EncodingVideo{TotalFrames: encodingVideos.Videos[videoUUID].TotalFrames, CurrentProgress: -1}
+	tempStruct := EncodingVideo{TotalFrames: encodingVideos.Videos[videoUUID].TotalFrames, CurrentProgress: 100}
 	encodingVideos.Videos[videoUUID] = tempStruct
 	encodingVideos.mutex.Unlock()
 }

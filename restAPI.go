@@ -73,7 +73,7 @@ func encodingStatus(w http.ResponseWriter, r *http.Request) {
 	if progress, ok := encodingVideos.Videos[keys[0]]; ok {
 		// Check if the encode has finished
 		if progress.CurrentProgress == -1 {
-			statusResponse := VideoEncodingStatusResponse{Finished: true, CID: encodingVideos.Videos[keys[0]].CID}
+			statusResponse := VideoEncodingStatusResponse{Finished: true, CID: progress.CID}
 
 			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(statusResponse)

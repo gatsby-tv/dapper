@@ -67,31 +67,30 @@ func encodingStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	encodingVideos.mutex.Lock()
+
 	// Check that the video is in the encoding map
 	if progress, ok := encodingVideos.Videos[keys[0]]; ok {
 		// Check if the encode has finished
 		if progress.CurrentProgress == -1 {
-			encodingVideos.mutex.Lock()
 			statusResponse := VideoEncodingStatusResponse{Finished: true, CID: encodingVideos.Videos[keys[0]].CID}
 
 			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(statusResponse)
 
 			delete(encodingVideos.Videos, keys[0])
-			encodingVideos.mutex.Unlock()
-			return
 		} else {
 			statusResponse := VideoEncodingStatusResponse{Finished: false, Progress: progress.CurrentProgress}
 
 			w.WriteHeader(http.StatusAccepted)
 			json.NewEncoder(w).Encode(statusResponse)
-			return
 		}
 	} else {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprintf(w, "Specified ID is not transcoding.")
-		return
 	}
+
+	encodingVideos.mutex.Unlock()
 }
 
 // func getCurrentOutTraffic(w http.ResponseWriter, r *http.Request) {
@@ -214,11 +213,12 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 		fmt.Printf("Unable to add video folder to IPFS: %s\n", err)
 		return
 	}
+	fmt.Printf("Video folder added to IPFS: %s\n", videoCID)
 
 	// Remove converted video folder
 	err = os.RemoveAll(videoFolder)
 	if err != nil {
-		fmt.Printf("Failed removing video folder: %s", err)
+		fmt.Printf("Failed removing video folder: %s\n", err)
 	}
 
 	// Update the map with the video CID

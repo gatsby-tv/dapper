@@ -115,7 +115,7 @@ func buildFfmpegCommand(videoFile, videoFolder string) ([]string, int, error) {
 
 	// Find the maximum resolution to scale the video to
 	maxResolutionIndex := 0
-	for ; maxResolutionIndex < len(videoResolutions) && videoWidth > int64(videoResolutions[maxResolutionIndex]); maxResolutionIndex++ {
+	for ; maxResolutionIndex < len(videoResolutions) - 1 && videoWidth > int64(videoResolutions[maxResolutionIndex]); maxResolutionIndex++ {
 	}
 
 	// Include the current resolution if the resolution matches

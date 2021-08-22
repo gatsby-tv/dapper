@@ -112,7 +112,7 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 	if err != nil {
 		return nil, err
 	}
-	config.Addresses.Swarm = []string{"/ip4/0.0.0.0/tcp/4001", "/ip6/::/tcp/4001", "/ip4/0.0.0.0/udp/4001/quic", "/ip6/::/udp/4001/quic", "/ip4/0.0.0.0/tcp/4001/ws", "/ip6/::/tcp/4001/ws"}
+	config.Addresses.Swarm = []string{"/ip4/0.0.0.0/tcp/4001", "/ip6/::/tcp/4001", "/ip4/0.0.0.0/udp/4001/quic", "/ip6/::/udp/4001/quic", "/ip4/0.0.0.0/tcp/8081/ws", "/ip6/::/tcp/8081/ws"}
 	repo.SetConfig(config)
 
 	// Construct the node

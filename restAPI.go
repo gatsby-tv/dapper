@@ -185,7 +185,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 
 	// Update the global map with the total number of frames in the current video
 	encodingVideos.mutex.Lock()
-	encodingVideos.Videos[videoUUID] = EncodingVideo{TotalFrames: videoFrames, CurrentProgress: 0, Length: videoLength}
+	encodingVideos.Videos[videoUUID] = EncodingVideo{TotalFrames: videoFrames, CurrentProgress: 0}
 	encodingVideos.mutex.Unlock()
 
 	// Convert video to HLS pieces
@@ -224,7 +224,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 
 	// Update the map with the video CID
 	encodingVideos.mutex.Lock()
-	tempStruct := EncodingVideo{CID: videoCID, CurrentProgress: -1}
+	tempStruct := EncodingVideo{CID: videoCID, CurrentProgress: -1, Length: videoLength}
 	encodingVideos.Videos[videoUUID] = tempStruct
 	encodingVideos.mutex.Unlock()
 

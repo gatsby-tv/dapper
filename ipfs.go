@@ -107,6 +107,14 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 		return nil, err
 	}
 
+	// Add web socket listener
+	config, err := repo.Config()
+	if err != nil {
+		return nil, err
+	}
+	config.Addresses.Swarm = []string{"/ip4/0.0.0.0/tcp/4001", "/ip6/::/tcp/4001", "/ip4/0.0.0.0/udp/4001/quic", "/ip6/::/udp/4001/quic", "/ip4/0.0.0.0/tcp/4001/ws", "/ip6/::/tcp/4001/ws"}
+	repo.SetConfig(config)
+
 	// Construct the node
 
 	nodeOptions := &core.BuildCfg{

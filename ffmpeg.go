@@ -28,6 +28,7 @@ type EncodingVideo struct {
 	TotalFrames     int64
 	CurrentProgress int64
 	CID             string
+	Length          int
 }
 
 // HLSChunkLength - Size of HLS pieces in seconds
@@ -43,7 +44,7 @@ var videoResolutionsStr = []string{"240", "360", "480", "720", "1080"}
 // Videos Currently being processed
 var encodingVideos EncodingVideos
 
-// Uses `ffprobe` to find the length of the video in seconds (ceilinged ot next largest int)
+// Uses `ffprobe` to find the length of the video in seconds (ceilinged to next largest int)
 func getVideoLength(videoFile string) (videoLength int, err error) {
 	cmd := exec.Command(viper.GetString("ffmpeg.ffprobeDir"), "-i", videoFile, "-show_entries", "format=duration", "-v", "quiet", "-of", `csv=p=0`)
 	out, err := cmd.CombinedOutput()

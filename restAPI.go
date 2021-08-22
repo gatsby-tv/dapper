@@ -30,6 +30,7 @@ type VideoEncodingStatusResponse struct {
 	Finished bool   `json:"finished"`
 	Progress int64  `json:"progress"`
 	CID      string `json:"cid"`
+	Length   int    `json:"length"`
 }
 
 // Maximum memory to attempt to store multipart form data in.
@@ -73,7 +74,7 @@ func encodingStatus(w http.ResponseWriter, r *http.Request) {
 	if progress, ok := encodingVideos.Videos[keys[0]]; ok {
 		// Check if the encode has finished
 		if progress.CurrentProgress == -1 {
-			statusResponse := VideoEncodingStatusResponse{Finished: true, CID: progress.CID}
+			statusResponse := VideoEncodingStatusResponse{Finished: true, CID: progress.CID, Length: progress.Length}
 
 			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(statusResponse)
@@ -184,7 +185,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 
 	// Update the global map with the total number of frames in the current video
 	encodingVideos.mutex.Lock()
-	encodingVideos.Videos[videoUUID] = EncodingVideo{TotalFrames: videoFrames, CurrentProgress: 0}
+	encodingVideos.Videos[videoUUID] = EncodingVideo{TotalFrames: videoFrames, CurrentProgress: 0, Length: videoLength}
 	encodingVideos.mutex.Unlock()
 
 	// Convert video to HLS pieces

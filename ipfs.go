@@ -194,6 +194,8 @@ func getUnixfsNode(path string) (files.Node, error) {
 /// ------
 // *** End of functions from go-ipfs/docs/examples/go-ipfs-as-a-library ***
 
+// Add content to IPFS
+
 func addFolderToIPFS(ctx context.Context, path string) (string, error) {
 	if useExistingIPFSNode {
 		return addFolderToRemoteIPFS(path)
@@ -298,6 +300,104 @@ func addFolderToRemoteIPFS(videoFolder string) (string, error) {
 	return folderResponse.Hash, nil
 }
 
+func addFileToIPFS(ctx context.Context, path string) (string, error) {
+	if useExistingIPFSNode {
+		return addFileToRemoteIPFS(path)
+	} else {
+		return addFileToDapperIPFS(ctx, path)
+	}
+}
+
+func addFileToDapperIPFS(ctx context.Context, path string) (string, error) {
+	someFile, err := getUnixfsNode(path)
+	if err != nil {
+		return "", err
+	}
+
+	cidFile, err := ipfs.Unixfs().Add(ctx, someFile)
+	if err != nil {
+		return "", err
+	}
+
+	err = ipfs.Pin().Add(ctx, cidFile)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.Split(cidFile.String(), "/")[2], nil
+}
+
+func addFileToRemoteIPFS(file string) (string, error) {
+	client := http.Client{}
+	// Prepare a form that you will submit to that URL.
+	var b bytes.Buffer
+	w := multipart.NewWriter(&b)
+	var fileReader io.Reader
+	
+	fileReader, err := mustOpen(file)
+	if err != nil {
+		return "", err
+	}
+
+	var fw io.Writer
+	if x, ok := fileReader.(io.Closer); ok {
+		defer x.Close()
+	}
+	// Add a file
+	if x, ok := fileReader.(*os.File); ok {
+		// Get the last 2 parts of the file name
+		// This will result in the folder the file is stored in and the file itself
+		fileParts := strings.Split(x.Name(), "/")
+		if fw, err = w.CreateFormFile("thumbnail", fileParts[len(fileParts)-1]); err != nil {
+			return "", err
+		}
+	}
+	if _, err = io.Copy(fw, fileReader); err != nil {
+		return "", err
+	}
+	// Don't forget to close the multipart writer.
+	// If you don't close it, your request will be missing the terminating boundary.
+	w.Close()
+
+	// Now that you have a form, you can submit it to your handler.
+	req, err := http.NewRequest("POST", ipfsURI+"/api/v0/add", &b)
+	if err != nil {
+		return "", err
+	}
+	// Don't forget to set the content type, this will contain the boundary.
+	req.Header.Set("Content-Type", w.FormDataContentType())
+
+	// Submit the request
+	res, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	// Check the response
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		fmt.Printf("Failed reading body of ipfs response: %s\n", err)
+		return "", err
+	}
+
+	if res.StatusCode >= 400 {
+		fmt.Printf("Error from ipfs: %s\n", string(body))
+		return "", err
+	}
+
+	// Body must be split into individual json objects since what is returned now is not a valid json object
+	bodyParts := strings.Split(string(body), "\n")
+
+	// The second to last object in this list is the pinned folder
+	var folderResponse ipfsAddResponse
+	err = json.Unmarshal([]byte(bodyParts[len(bodyParts)-2]), &folderResponse)
+	if err != nil {
+		return "", err
+	}
+	return folderResponse.Hash, nil
+}
+
 func openFilesInDir(path string) ([]io.Reader, error) {
 	var files []string
 	var fileReaders []io.Reader
@@ -329,25 +429,6 @@ func mustOpen(f string) (*os.File, error) {
 		return nil, err
 	}
 	return r, nil
-}
-
-func addFileToDapperIPFS(ctx context.Context, path string) (string, error) {
-	someFile, err := getUnixfsNode(path)
-	if err != nil {
-		return "", err
-	}
-
-	cidFile, err := ipfs.Unixfs().Add(ctx, someFile)
-	if err != nil {
-		return "", err
-	}
-
-	err = ipfs.Pin().Add(ctx, cidFile)
-	if err != nil {
-		return "", err
-	}
-
-	return strings.Split(cidFile.String(), "/")[2], nil
 }
 
 func startIPFS(ctx context.Context) error {

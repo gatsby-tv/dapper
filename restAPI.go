@@ -20,7 +20,8 @@ import (
 // Response given by dapper to a POST to "/video".
 // Gives the caller the ID of the video within dapper to check its status and get the finished CID.
 type VideoStartEncodingResponse struct {
-	ID string `json:"id"`
+	ID 	         string `json:"id"`
+	ThumbnailCID string `json:"thumbnailCID"`
 }
 
 // Response given by dapper to a GET to "/status".
@@ -31,6 +32,12 @@ type VideoEncodingStatusResponse struct {
 	Progress int64  `json:"progress"`
 	CID      string `json:"cid"`
 	Length   int    `json:"length"`
+}
+
+// Response given by dapper to a POST to "/thumbnail".
+// Gives the caller the CID of the thumbnail after it is added to IPFS.
+type ThumbnailUploadResponse struct {
+	CID string `json:"cid"`
 }
 
 // Maximum memory to attempt to store multipart form data in.
@@ -49,6 +56,7 @@ func handleRequests(port int) {
 
 	// POSTs
 	myRouter.HandleFunc("/video", uploadVideo).Methods("POST")
+	myRouter.HandleFunc("/thumbnail", uploadThumbnail).Methods("POST")
 
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), myRouter))
 }
@@ -130,8 +138,6 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 	// Write video to disk
 	videoUUID := uuid.New().String()
 
-	videoResponse := VideoStartEncodingResponse{ID: videoUUID}
-
 	videoFilename := path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder, videoUUID+"."+strings.Split(videoHeader.Filename, ".")[len(strings.Split(videoHeader.Filename, "."))-1])
 
 	err = writeMultiPartFormDataToDisk(video, videoFilename)
@@ -151,10 +157,55 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(videoResponse)
+	thumbnailCID, err := addFileToIPFS(r.Context(), thumbnailFilename)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Failed adding thumbnail to IPFS: %s", err)
+		return
+	}
+
+	json.NewEncoder(w).Encode(VideoStartEncodingResponse{ID: videoUUID, ThumbnailCID: thumbnailCID})
 
 	// Run rest of video upload async
 	go asyncVideoUpload(videoFilename, thumbnailFilename, videoUUID)
+}
+
+func uploadThumbnail(w http.ResponseWriter, r *http.Request) {
+	// Parse multipart form data
+	err := r.ParseMultipartForm(multipartMaxMemory)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "Error parsing multipart form data: %s", err)
+		return
+	}
+
+	// Check for the necessary files in the multipart form data
+	thumbnail, thumbnailHeader, err := r.FormFile("thumbnail")
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "Failed getting thumbnail from multipart form data: %s", err)
+		return
+	}
+	defer thumbnail.Close()
+
+	// Write thumbnail to disk
+	thumbnailFilename := path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder, uuid.New().String()+"-thumbnail"+"."+strings.Split(thumbnailHeader.Filename, ".")[len(strings.Split(thumbnailHeader.Filename, "."))-1])
+
+	err = writeMultiPartFormDataToDisk(thumbnail, thumbnailFilename)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Failed writing thumbnail to disk: %s", err)
+		return
+	}
+
+	thumbnailCID, err := addFileToIPFS(r.Context(), thumbnailFilename)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Failed adding thumbnail to IPFS: %s", err)
+		return
+	}
+
+	json.NewEncoder(w).Encode(ThumbnailUploadResponse{CID: thumbnailCID})
 }
 
 // Private Functions

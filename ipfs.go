@@ -112,6 +112,8 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// There are the default ports IPFS listens on for standard requests and websockets
 	config.Addresses.Swarm = []string{"/ip4/0.0.0.0/tcp/4001", "/ip6/::/tcp/4001", "/ip4/0.0.0.0/udp/4001/quic", "/ip6/::/udp/4001/quic", "/ip4/0.0.0.0/tcp/8081/ws", "/ip6/::/tcp/8081/ws"}
 	repo.SetConfig(config)
 

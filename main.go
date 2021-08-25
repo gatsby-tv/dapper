@@ -21,6 +21,7 @@ const configFileExtension = "toml"
 
 func main() {
 	readConfigFile()
+	log.Trace().Msg("Successfully loaded config")
 
 	portPtr := flag.Int("p", 10000, "Port to listen for requests on.")
 	flag.Parse()
@@ -38,6 +39,7 @@ func main() {
 		}
 	}
 
+	// Setup memory map for keeping track of videos being processed
 	encodingVideos.Videos = make(map[string]EncodingVideo)
 
 	startDaemon(*portPtr)
@@ -66,6 +68,7 @@ func readConfigFile() {
 		viper.Set("Videos.TempVideoStorageFolder", videoDir)
 	}
 
+	// If none was set, use the one on the path
 	if ffmpegDir := viper.GetString("ffmpeg.ffmpegDir"); ffmpegDir == "" {
 		viper.Set("ffmpeg.ffmpegDir", "ffmpeg")
 	}

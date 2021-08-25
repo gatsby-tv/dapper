@@ -168,7 +168,7 @@ func connectToPeers(ctx context.Context, ipfs icore.CoreAPI, peers []string) err
 			defer wg.Done()
 			err := ipfs.Swarm().Connect(ctx, *peerInfo)
 			if err != nil {
-				log.Printf("failed to connect to %s: %s", peerInfo.ID, err)
+				log.Error().Msgf("failed to connect to %s: %s", peerInfo.ID, err)
 			}
 		}(peerInfo)
 	}
@@ -333,7 +333,7 @@ func addFileToRemoteIPFS(file string) (string, error) {
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
 	var fileReader io.Reader
-	
+
 	fileReader, err := mustOpen(file)
 	if err != nil {
 		return "", err
@@ -510,10 +510,9 @@ func startIPFS(ctx context.Context) error {
 			log.Info().Msg("Using existing IPFS node on localhost")
 		}
 	} else {
+		log.Info().Msgf("Using existing IPFS node at %s", ipfsURI)
 		useExistingIPFSNode = true
 	}
-
-	log.Info().Msg("IPFS Ready!")
 
 	return nil
 }

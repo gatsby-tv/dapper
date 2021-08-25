@@ -100,6 +100,8 @@ func encodingStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	encodingVideos.mutex.Unlock()
+
+	log.Trace().Msgf("Returning status for %s", keys[0])
 }
 
 // func getCurrentOutTraffic(w http.ResponseWriter, r *http.Request) {
@@ -142,8 +144,9 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 
 	err = writeMultiPartFormDataToDisk(video, videoFilename)
 	if err != nil {
+		log.Error().Msgf("Failed writing video to disk: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed writing video to disk: %s", err)
+		fmt.Fprintf(w, "Failed writing video to disk")
 		return
 	}
 
@@ -152,19 +155,23 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 
 	err = writeMultiPartFormDataToDisk(thumbnail, thumbnailFilename)
 	if err != nil {
+		log.Error().Msgf("Failed writing thumbnail to disk: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed writing thumbnail to disk: %s", err)
+		fmt.Fprintf(w, "Failed writing thumbnail to disk")
 		return
 	}
 
 	thumbnailCID, err := addFileToIPFS(r.Context(), thumbnailFilename)
 	if err != nil {
+		log.Error().Msgf("Failed adding thumbnail to IPFS: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed adding thumbnail to IPFS: %s", err)
+		fmt.Fprintf(w, "Failed adding thumbnail to IPFS")
 		return
 	}
 
 	json.NewEncoder(w).Encode(VideoStartEncodingResponse{ID: videoUUID, ThumbnailCID: thumbnailCID})
+
+	log.Trace().Msgf("Finished video pre-processing. Starting encoding of %s", videoFilename)
 
 	// Run rest of video upload async
 	go asyncVideoUpload(videoFilename, thumbnailFilename, videoUUID)
@@ -193,15 +200,17 @@ func uploadThumbnail(w http.ResponseWriter, r *http.Request) {
 
 	err = writeMultiPartFormDataToDisk(thumbnail, thumbnailFilename)
 	if err != nil {
+		log.Error().Msgf("Failed writing thumbnail to disk: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed writing thumbnail to disk: %s", err)
+		fmt.Fprintf(w, "Failed writing thumbnail to disk")
 		return
 	}
 
 	thumbnailCID, err := addFileToIPFS(r.Context(), thumbnailFilename)
 	if err != nil {
+		log.Error().Msgf("Failed adding thumbnail to IPFS: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed adding thumbnail to IPFS: %s", err)
+		fmt.Fprintf(w, "Failed adding thumbnail to IPFS")
 		return
 	}
 
@@ -223,14 +232,14 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	// Get the length of the video in seconds
 	videoLength, err := getVideoLength(video)
 	if err != nil {
-		log.Info().Msgf("Unable to get video length: %s\n", err)
+		log.Error().Msgf("Unable to get video length: %s\n", err)
 		return
 	}
 
 	// Get the number of frames in the video for tracking encoding progress
 	videoFrames, err := getVideoFrames(video, videoLength)
 	if err != nil {
-		log.Info().Msgf("Unable to count video frames: %s\n", err)
+		log.Error().Msgf("Unable to count video frames: %s\n", err)
 		return
 	}
 
@@ -242,7 +251,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	// Convert video to HLS pieces
 	videoFolder, err := convertToHLS(video, videoUUID)
 	if err != nil {
-		log.Info().Msgf("Unable to convert video to HLS: %s\n", err)
+		log.Error().Msgf("Unable to convert video to HLS: %s\n", err)
 		return
 	}
 
@@ -252,7 +261,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	// Copy the thumbnail into the transcoded video folder
 	thumbnailFileExtension := filepath.Ext(thumbnail)
 	if err = fileCopy(thumbnail, path.Join(videoFolder, "thumbnail"+thumbnailFileExtension)); err != nil {
-		log.Info().Msgf("Unable to copy thumbnail file: %s\n", err)
+		log.Error().Msgf("Unable to copy thumbnail file: %s\n", err)
 		return
 	}
 
@@ -262,7 +271,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	// Add video folder to IPFS
 	videoCID, err := addFolderToIPFS(ctx, videoFolder)
 	if err != nil {
-		log.Info().Msgf("Unable to add video folder to IPFS: %s\n", err)
+		log.Error().Msgf("Unable to add video folder to IPFS: %s\n", err)
 		return
 	}
 	log.Info().Msgf("Video folder added to IPFS: %s\n", videoCID)
@@ -270,7 +279,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	// Remove converted video folder
 	err = os.RemoveAll(videoFolder)
 	if err != nil {
-		log.Info().Msgf("Failed removing video folder: %s\n", err)
+		log.Error().Msgf("Failed removing video folder: %s\n", err)
 	}
 
 	// Update the map with the video CID

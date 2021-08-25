@@ -229,9 +229,8 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 
 func logStdErr(ffmpegStdErr io.ReadCloser) {
 	scanner := bufio.NewScanner(ffmpegStdErr)
-	log.Info().Msg("ffmpeg stderr:")
 	for scanner.Scan() {
-		log.Info().Msg(scanner.Text())
+		log.Error().Str("ffmpeg", "stderr").Msg(scanner.Text())
 	}
 }
 
@@ -245,18 +244,19 @@ func updateEncodeFrameProgress(ffmpegStdOut io.ReadCloser, videoUUID string) {
 			endOfFile = true
 			continue
 		} else if err != nil {
-			log.Info().Msgf("Error updating video progress: %s\n", err)
+			log.Error().Msgf("Error updating video progress: %s\n", err)
 			endOfFile = true
 			continue
 		}
 
 		// Take the frame count out of the output of ffmpeg
 		output := string(buf)
+		log.Debug().Str("ffmpeg", "stdout").Msg(output)
 		frameLine := strings.Split(output, "\n")[0]
 		frameCountStr := strings.Split(frameLine, "=")[1]
 		frameCount, err := strconv.ParseInt(frameCountStr, 10, 64)
 		if err != nil {
-			log.Info().Msgf("Error updating video progress: %s\n", err)
+			log.Error().Msgf("Error updating video progress: %s\n", err)
 			endOfFile = true
 			continue
 		}

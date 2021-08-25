@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -28,6 +27,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/metrics"
 	"github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
 
@@ -279,12 +279,12 @@ func addFolderToRemoteIPFS(videoFolder string) (string, error) {
 	defer res.Body.Close()
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		fmt.Printf("Failed reading body of ipfs response: %s\n", err)
+		log.Info().Msgf("Failed reading body of ipfs response: %s\n", err)
 		return "", err
 	}
 
 	if res.StatusCode >= 400 {
-		fmt.Printf("Error from ipfs: %s\n", string(body))
+		log.Info().Msgf("Error from ipfs: %s\n", string(body))
 		return "", err
 	}
 
@@ -377,12 +377,12 @@ func addFileToRemoteIPFS(file string) (string, error) {
 	defer res.Body.Close()
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		fmt.Printf("Failed reading body of ipfs response: %s\n", err)
+		log.Info().Msgf("Failed reading body of ipfs response: %s\n", err)
 		return "", err
 	}
 
 	if res.StatusCode >= 400 {
-		fmt.Printf("Error from ipfs: %s\n", string(body))
+		log.Info().Msgf("Error from ipfs: %s\n", string(body))
 		return "", err
 	}
 
@@ -483,7 +483,7 @@ func startIPFS(ctx context.Context) error {
 				return err
 			}
 
-			fmt.Println("Internal IPFS node is running")
+			log.Info().Msg("Internal IPFS node is running")
 
 			bootstrapNodes := []string{
 				// IPFS Bootstrapper nodes.
@@ -507,13 +507,13 @@ func startIPFS(ctx context.Context) error {
 
 			ipfs = ipfsTmp
 		} else {
-			fmt.Println("Using existing IPFS node on localhost")
+			log.Info().Msg("Using existing IPFS node on localhost")
 		}
 	} else {
 		useExistingIPFSNode = true
 	}
 
-	fmt.Println("IPFS Ready!")
+	log.Info().Msg("IPFS Ready!")
 
 	return nil
 }

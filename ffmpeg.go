@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"math"
@@ -14,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
 
@@ -116,7 +116,7 @@ func buildFfmpegCommand(videoFile, videoFolder string) ([]string, int, error) {
 
 	// Find the maximum resolution to scale the video to
 	maxResolutionIndex := 0
-	for ; maxResolutionIndex < len(videoResolutions) - 1 && videoWidth > int64(videoResolutions[maxResolutionIndex]); maxResolutionIndex++ {
+	for ; maxResolutionIndex < len(videoResolutions)-1 && videoWidth > int64(videoResolutions[maxResolutionIndex]); maxResolutionIndex++ {
 	}
 
 	// Include the current resolution if the resolution matches
@@ -196,7 +196,7 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 	// Convert video
 	cmd := exec.Command(viper.GetString("ffmpeg.ffmpegDir"), ffmpegArgs...)
 
-	fmt.Printf("Converting %s to HLS...\n", videoFile)
+	log.Info().Msgf("Converting %s to HLS...\n", videoFile)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", err
@@ -229,9 +229,9 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 
 func logStdErr(ffmpegStdErr io.ReadCloser) {
 	scanner := bufio.NewScanner(ffmpegStdErr)
-	fmt.Println("ffmpeg stderr:")
+	log.Info().Msg("ffmpeg stderr:")
 	for scanner.Scan() {
-		fmt.Println(scanner.Text())
+		log.Info().Msg(scanner.Text())
 	}
 }
 
@@ -245,7 +245,7 @@ func updateEncodeFrameProgress(ffmpegStdOut io.ReadCloser, videoUUID string) {
 			endOfFile = true
 			continue
 		} else if err != nil {
-			fmt.Printf("Error updating video progress: %s\n", err)
+			log.Info().Msgf("Error updating video progress: %s\n", err)
 			endOfFile = true
 			continue
 		}
@@ -256,7 +256,7 @@ func updateEncodeFrameProgress(ffmpegStdOut io.ReadCloser, videoUUID string) {
 		frameCountStr := strings.Split(frameLine, "=")[1]
 		frameCount, err := strconv.ParseInt(frameCountStr, 10, 64)
 		if err != nil {
-			fmt.Printf("Error updating video progress: %s\n", err)
+			log.Info().Msgf("Error updating video progress: %s\n", err)
 			endOfFile = true
 			continue
 		}

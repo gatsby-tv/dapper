@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path"
@@ -14,13 +13,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
 
 // Response given by dapper to a POST to "/video".
 // Gives the caller the ID of the video within dapper to check its status and get the finished CID.
 type VideoStartEncodingResponse struct {
-	ID 	         string `json:"id"`
+	ID           string `json:"id"`
 	ThumbnailCID string `json:"thumbnailCID"`
 }
 
@@ -58,7 +58,7 @@ func handleRequests(port int) {
 	myRouter.HandleFunc("/video", uploadVideo).Methods("POST")
 	myRouter.HandleFunc("/thumbnail", uploadThumbnail).Methods("POST")
 
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), myRouter))
+	log.Fatal().Msg(http.ListenAndServe(fmt.Sprintf(":%d", port), myRouter).Error())
 }
 
 // Routes
@@ -223,14 +223,14 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	// Get the length of the video in seconds
 	videoLength, err := getVideoLength(video)
 	if err != nil {
-		fmt.Printf("Unable to get video length: %s\n", err)
+		log.Info().Msgf("Unable to get video length: %s\n", err)
 		return
 	}
 
 	// Get the number of frames in the video for tracking encoding progress
 	videoFrames, err := getVideoFrames(video, videoLength)
 	if err != nil {
-		fmt.Printf("Unable to count video frames: %s\n", err)
+		log.Info().Msgf("Unable to count video frames: %s\n", err)
 		return
 	}
 
@@ -242,7 +242,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	// Convert video to HLS pieces
 	videoFolder, err := convertToHLS(video, videoUUID)
 	if err != nil {
-		fmt.Printf("Unable to convert video to HLS: %s\n", err)
+		log.Info().Msgf("Unable to convert video to HLS: %s\n", err)
 		return
 	}
 
@@ -252,7 +252,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	// Copy the thumbnail into the transcoded video folder
 	thumbnailFileExtension := filepath.Ext(thumbnail)
 	if err = fileCopy(thumbnail, path.Join(videoFolder, "thumbnail"+thumbnailFileExtension)); err != nil {
-		fmt.Printf("Unable to copy thumbnail file: %s\n", err)
+		log.Info().Msgf("Unable to copy thumbnail file: %s\n", err)
 		return
 	}
 
@@ -262,15 +262,15 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	// Add video folder to IPFS
 	videoCID, err := addFolderToIPFS(ctx, videoFolder)
 	if err != nil {
-		fmt.Printf("Unable to add video folder to IPFS: %s\n", err)
+		log.Info().Msgf("Unable to add video folder to IPFS: %s\n", err)
 		return
 	}
-	fmt.Printf("Video folder added to IPFS: %s\n", videoCID)
+	log.Info().Msgf("Video folder added to IPFS: %s\n", videoCID)
 
 	// Remove converted video folder
 	err = os.RemoveAll(videoFolder)
 	if err != nil {
-		fmt.Printf("Failed removing video folder: %s\n", err)
+		log.Info().Msgf("Failed removing video folder: %s\n", err)
 	}
 
 	// Update the map with the video CID
@@ -279,7 +279,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	encodingVideos.Videos[videoUUID] = tempStruct
 	encodingVideos.mutex.Unlock()
 
-	fmt.Printf("Finished transcoding %s.\n", video)
+	log.Info().Msgf("Finished transcoding %s.\n", video)
 }
 
 // Writes given multipart form data object to the file specified

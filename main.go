@@ -3,11 +3,10 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
-	"log"
 	"os"
 	"path"
 
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
 
@@ -28,14 +27,14 @@ func main() {
 
 	// Verify the given port is a valid port number
 	if *portPtr < 1 || *portPtr > 65535 {
-		log.Fatal("Invalid port specified.")
+		log.Fatal().Msg("Invalid port specified.")
 	}
 
 	// Create video scratch path if it does not exist
 	if _, err := os.Stat(path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder)); os.IsNotExist(err) {
 		err := os.Mkdir(path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder), 0755)
 		if err != nil {
-			log.Fatalf("Failed setting up video directory: %s", err)
+			log.Fatal().Msgf("Failed setting up video directory: %s", err)
 		}
 	}
 
@@ -52,9 +51,9 @@ func readConfigFile() {
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			// Config file not found ignore error and use defaults
-			fmt.Println("Configuration file not found, using defaults.")
+			log.Info().Msg("Configuration file not found, using defaults.")
 		} else {
-			log.Fatal(err)
+			log.Fatal().Msg(err.Error())
 		}
 	}
 
@@ -62,7 +61,7 @@ func readConfigFile() {
 	if videoDir := viper.GetString("Videos.TempVideoStorageFolder"); videoDir == "" {
 		videoDir, err := os.MkdirTemp(os.TempDir(), "dapper-*")
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal().Msg(err.Error())
 		}
 		viper.Set("Videos.TempVideoStorageFolder", videoDir)
 	}
@@ -81,13 +80,13 @@ func startDaemon(port int) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	fmt.Println("-- Setting up IPFS --")
+	log.Trace().Msg("Setting up IPFS")
 
 	err := startIPFS(ctx)
 	if err != nil {
-		log.Fatalf("Failed to start IPFS: %s", err)
+		log.Fatal().Msgf("Failed to start IPFS: %s", err)
 	}
 
-	fmt.Println("Ready for requests")
+	log.Info().Msg("Ready for requests")
 	handleRequests(port)
 }

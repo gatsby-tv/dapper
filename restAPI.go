@@ -20,7 +20,7 @@ import (
 // Response given by dapper to a POST to "/video".
 // Gives the caller the ID of the video within dapper to check its status and get the finished CID.
 type VideoStartEncodingResponse struct {
-	ID 	         string `json:"id"`
+	ID           string `json:"id"`
 	ThumbnailCID string `json:"thumbnailCID"`
 }
 
@@ -247,7 +247,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	}
 
 	// Remove scratch video file
-	os.Remove(video)
+	// os.Remove(video)
 
 	// Copy the thumbnail into the transcoded video folder
 	thumbnailFileExtension := filepath.Ext(thumbnail)
@@ -257,7 +257,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	}
 
 	// Remove scratch thumbnail file
-	os.Remove(thumbnail)
+	// os.Remove(thumbnail)
 
 	// Add video folder to IPFS
 	videoCID, err := addFolderToIPFS(ctx, videoFolder)
@@ -268,7 +268,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	fmt.Printf("Video folder added to IPFS: %s\n", videoCID)
 
 	// Remove converted video folder
-	err = os.RemoveAll(videoFolder)
+	// err = os.RemoveAll(videoFolder)
 	if err != nil {
 		fmt.Printf("Failed removing video folder: %s\n", err)
 	}

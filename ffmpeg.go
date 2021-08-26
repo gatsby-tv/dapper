@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"os"
 	"os/exec"
@@ -14,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
 
@@ -185,12 +185,12 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 	if err != nil {
 		return "", errors.New("Failed to build ffmpeg command: " + err.Error())
 	}
-	log.Println(ffmpegArgs)
+	log.Debug().Msg(strings.Join(ffmpegArgs, " "))
 
 	// Convert video
 	cmd := exec.Command(viper.GetString("ffmpeg.ffmpegDir"), ffmpegArgs...)
 
-	fmt.Printf("Converting %s to HLS...\n", videoFile)
+	log.Info().Msgf("Converting %s to HLS...\n", videoFile)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", err
@@ -218,9 +218,8 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 
 func logStdErr(ffmpegStdErr io.ReadCloser) {
 	scanner := bufio.NewScanner(ffmpegStdErr)
-	fmt.Println("ffmpeg stderr:")
 	for scanner.Scan() {
-		fmt.Println(scanner.Text())
+		log.Error().Str("ffmpeg", "stderr").Msg(scanner.Text())
 	}
 }
 
@@ -234,18 +233,19 @@ func updateEncodeFrameProgress(ffmpegStdOut io.ReadCloser, videoUUID string) {
 			endOfFile = true
 			continue
 		} else if err != nil {
-			fmt.Printf("Error updating video progress: %s\n", err)
+			log.Error().Msgf("Error updating video progress: %s\n", err)
 			endOfFile = true
 			continue
 		}
 
 		// Take the frame count out of the output of ffmpeg
 		output := string(buf)
+		log.Debug().Str("ffmpeg", "stdout").Msg(output)
 		frameLine := strings.Split(output, "\n")[0]
 		frameCountStr := strings.Split(frameLine, "=")[1]
 		frameCount, err := strconv.ParseInt(frameCountStr, 10, 64)
 		if err != nil {
-			fmt.Printf("Error updating video progress: %s\n", err)
+			log.Error().Msgf("Error updating video progress: %s\n", err)
 			endOfFile = true
 			continue
 		}

@@ -3,8 +3,8 @@ package main
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"os/exec"
@@ -36,10 +36,22 @@ const HLSChunkLength = 10
 
 // Standard video resolutions for transcoding videos
 // These are the widths associated with the standard 16:9 resolutions
-var videoResolutions = []int64{426, 640, 854, 1280, 1920}
-
-// These are the standard heights for 16:9 videos
-var videoResolutionsStr = []string{"240", "360", "480", "720", "1080"}
+var standardVideoWidths = []int64{426, 640, 854, 1280, 1920}
+var standardVideoHeigths = []int64{240, 360, 480, 720, 1080}
+var resolutionBitRates = map[int]string{
+	240:  "500k",
+	360:  "1M",
+	480:  "2M",
+	720:  "3M",
+	1080: "5M",
+}
+var resolutionBufferSizes = map[int]string{
+	240:  "1M",
+	360:  "2M",
+	480:  "4M",
+	720:  "6M",
+	1080: "10M",
+}
 
 // Videos Currently being processed
 var encodingVideos EncodingVideos
@@ -90,92 +102,115 @@ func getVideoResolution(videoFile string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// FFMPEG command building
+
+func buildFfmpegFilter(numResolutions int) []string {
+	ffmpegFilter := []string{"-filter_complex"}
+	filterString := fmt.Sprintf("[0:v]split=%d", numResolutions)
+
+	// Split the video into numResolutions parts
+	for i := 0; i < numResolutions; i++ {
+		filterString += fmt.Sprintf("[v%d]", i+1)
+	}
+
+	filterString += "; "
+
+	// Scale each stream to the appropriate resolution
+	for i := 0; i < numResolutions; i++ {
+		filterString += fmt.Sprintf("[v%d]scale=h=%d:-2[v%dout]", i+1, standardVideoHeigths[i], i+1)
+		if (i + 1) < numResolutions {
+			filterString += "; "
+		}
+	}
+
+	ffmpegFilter = append(ffmpegFilter, filterString)
+
+	return ffmpegFilter
+}
+
+func buildFfmpegVideoStreamParams(numResolutions int) []string {
+	ffmpegVideoStreamParams := []string{}
+
+	for i := 0; i < numResolutions; i++ {
+		ffmpegVideoStreamParams = append(ffmpegVideoStreamParams, "-map", fmt.Sprintf("[v%dout]", i+1), fmt.Sprintf("-c:v:%d", i), "libx264", fmt.Sprintf("-b:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-maxrate:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-minrate:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-bufsize:v:%d", i), resolutionBufferSizes[int(standardVideoHeigths[i])], "-preset", "ultrafast", "-crf", "23", "-g", "48", "-sc_threshold", "0", "-keyint_min", "48")
+	}
+
+	return ffmpegVideoStreamParams
+}
+
+// -map a:0 -c:a:0 aac -b:a:0 96k -ac 2
+func buildFfmpegAudioStreamParams(numResolutions int) []string {
+	ffmpegAudioStreamParams := []string{}
+
+	for i := 0; i < numResolutions; i++ {
+		ffmpegAudioStreamParams = append(ffmpegAudioStreamParams, "-map", "a:0", fmt.Sprintf("-c:a:%d", i), "aac" /*fmt.Sprintf("-b:a:%d", i), "96k",*/, "-ac", "2")
+	}
+
+	return ffmpegAudioStreamParams
+}
+
+func buildFfmpegHLSParams(videoFolder string) []string {
+	ffmpegHLSParams := []string{"-f", "hls", "-hls_time", "2", "-hls_playlist_type", "vod", "-hls_flags", "independent_segments", "-hls_segment_type", "mpegts", "-hls_segment_filename", path.Join(videoFolder, "stream_%v-data%02d.ts"), "-master_pl_name", "master.m3u8"}
+	return ffmpegHLSParams
+}
+
+func buildFfmpegVarStreamMapParams(numResolutions int) []string {
+	ffmpegVarStreamMapParams := []string{"-var_stream_map"}
+	streamMap := ""
+
+	for i := 0; i < numResolutions; i++ {
+		streamMap += fmt.Sprintf("v:%d,a:%d", i, i)
+		if (i + 1) < numResolutions {
+			streamMap += " "
+		}
+	}
+
+	ffmpegVarStreamMapParams = append(ffmpegVarStreamMapParams, streamMap)
+
+	return ffmpegVarStreamMapParams
+}
+
 // Builds the array of arguments necessary for ffmpeg to properly transcode the given video
-// This downscales the video to the maximum and below of a horizontal width of 1920, 1280, 854, 640, 426
-func buildFfmpegCommand(videoFile, videoFolder string) ([]string, int, error) {
+func buildFfmpegCommand(videoFile, videoFolder string) ([]string, error) {
 	// Initial arguments for formatting ffmpeg's output
 	ffmpegArgs := []string{"-i", videoFile, "-loglevel", "error", "-progress", "-", "-nostats"}
 
+	maxResolutionIndex, err := determineMaxResolutionIndex(videoFile, videoFolder)
+	if err != nil {
+		return nil, err
+	}
+
+	outputResolutions := standardVideoWidths[0:maxResolutionIndex]
+	numResolutions := len(outputResolutions)
+
+	ffmpegArgs = append(ffmpegArgs, buildFfmpegFilter(numResolutions)...)
+	ffmpegArgs = append(ffmpegArgs, buildFfmpegVideoStreamParams(numResolutions)...)
+	ffmpegArgs = append(ffmpegArgs, buildFfmpegAudioStreamParams(numResolutions)...)
+	ffmpegArgs = append(ffmpegArgs, buildFfmpegHLSParams(videoFolder)...)
+	ffmpegArgs = append(ffmpegArgs, buildFfmpegVarStreamMapParams(numResolutions)...)
+	ffmpegArgs = append(ffmpegArgs, path.Join(videoFolder, "stream_%v.m3u8"))
+
+	return ffmpegArgs, nil
+}
+
+func determineMaxResolutionIndex(videoFile, videoFolder string) (int, error) {
 	// Get the resolution of the current video
 	videoResolution, err := getVideoResolution(videoFile)
 	if err != nil {
-		return nil, 0, err
+		return 0, err
 	}
 
 	videoWidth, err := strconv.ParseInt(strings.Split(videoResolution, "x")[0], 10, 64)
 	if err != nil {
-		return nil, 0, err
+		return 0, err
 	}
-	videoHeight, err := strconv.ParseInt(strings.Split(videoResolution, "x")[1], 10, 64)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	// Find its aspect ratio for calculating the scaled resolutions
-	aspectRatio := float64(videoHeight) / float64(videoWidth)
 
 	// Find the maximum resolution to scale the video to
 	maxResolutionIndex := 0
-	for ; maxResolutionIndex < len(videoResolutions)-1 && videoWidth > int64(videoResolutions[maxResolutionIndex]); maxResolutionIndex++ {
+	for ; maxResolutionIndex < len(standardVideoWidths)-1 && videoWidth > int64(standardVideoWidths[maxResolutionIndex]); maxResolutionIndex++ {
 	}
 
-	// Include the current resolution if the resolution matches
-	if videoWidth == int64(videoResolutions[maxResolutionIndex]) {
-		maxResolutionIndex++
-	}
-
-	outputResolutions := videoResolutions[0:maxResolutionIndex]
-	numResolutions := len(outputResolutions)
-
-	// Add a series of parameters for each resolution
-	for i := 0; i < numResolutions; i++ {
-		resolutionHeight := int64(math.Floor(float64(videoResolutions[i]) * aspectRatio))
-		if resolutionHeight%2 != 0 {
-			resolutionHeight++
-		}
-
-		ffmpegArgs = append(ffmpegArgs, "-s", strconv.FormatInt(videoResolutions[i], 10)+"x"+strconv.FormatInt(resolutionHeight, 10), "-hls_playlist_type", "vod", "-hls_flags", "independent_segments", "-hls_segment_type", "mpegts", "-hls_segment_filename", path.Join(videoFolder, "stream_"+videoResolutionsStr[i]+"_data%02d.ts"), "-hls_time", "10", "-master_pl_name", "master"+videoResolutionsStr[i]+".m3u8", "-f", "hls", path.Join(videoFolder, "stream_"+videoResolutionsStr[i]+".m3u8"))
-	}
-
-	return ffmpegArgs, maxResolutionIndex, nil
-}
-
-// Combines the master playlists generated by ffmpeg into a single master playlist
-func combineMasterPlaylists(videoFolder string, maxResolutionIndex int) error {
-	// Create the master playlist file
-	destination, err := os.Create(path.Join(videoFolder, "master.m3u8"))
-	if err != nil {
-		return err
-	}
-	defer destination.Close()
-
-	// Copy the important parts of each resolution's playlist file to the master
-	for i := 0; i < maxResolutionIndex; i++ {
-		file, err := ioutil.ReadFile(path.Join(videoFolder, "master"+videoResolutionsStr[i]+".m3u8"))
-		if err != nil {
-			return err
-		}
-
-		// Write the entire first file to the master to get the necesssary headers
-		if i == 0 {
-			destination.Write(file)
-		} else {
-			lines := strings.Split(string(file), "\n")
-
-			// Currently the way ffmpeg creates these files, the third and fourth lines contain the data specific to the stream in question
-			destination.WriteString(lines[2])
-			destination.WriteString("\n")
-			destination.WriteString(lines[3])
-			destination.WriteString("\n")
-		}
-
-		// Delete the file after it has been added to the master
-		os.Remove(path.Join(videoFolder, "master"+videoResolutionsStr[i]+".m3u8"))
-
-		destination.WriteString("\n")
-	}
-
-	return nil
+	return maxResolutionIndex, nil
 }
 
 // Converts the given video to HLS chunks and places them in a folder named with the video's UUID
@@ -188,10 +223,11 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 	}
 
 	// Build the ffmpeg command that transcodes the given video to multiple HLS streams of different resolutions
-	ffmpegArgs, maxResolutionIndex, err := buildFfmpegCommand(videoFile, videoFolder)
+	ffmpegArgs, err := buildFfmpegCommand(videoFile, videoFolder)
 	if err != nil {
 		return "", errors.New("Failed to build ffmpeg command: " + err.Error())
 	}
+	log.Debug().Msg(strings.Join(ffmpegArgs, " "))
 
 	// Convert video
 	cmd := exec.Command(viper.GetString("ffmpeg.ffmpegDir"), ffmpegArgs...)
@@ -215,11 +251,6 @@ func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
 	go logStdErr(stderr)
 
 	err = cmd.Wait()
-	if err != nil {
-		return "", err
-	}
-
-	err = combineMasterPlaylists(videoFolder, maxResolutionIndex)
 	if err != nil {
 		return "", err
 	}
@@ -250,7 +281,7 @@ func updateEncodeFrameProgress(ffmpegStdOut io.ReadCloser, videoUUID string) {
 		}
 
 		// Take the frame count out of the output of ffmpeg
-		output := string(buf)
+		output := strings.Trim(string(buf), "\u0000")
 		log.Debug().Str("ffmpeg", "stdout").Msg(output)
 		frameLine := strings.Split(output, "\n")[0]
 		frameCountStr := strings.Split(frameLine, "=")[1]

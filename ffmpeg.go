@@ -38,6 +38,20 @@ const HLSChunkLength = 10
 // These are the widths associated with the standard 16:9 resolutions
 var standardVideoWidths = []int64{426, 640, 854, 1280, 1920}
 var standardVideoHeigths = []int64{240, 360, 480, 720, 1080}
+var resolutionBitRates = map[int]string{
+	240:  "500k",
+	360:  "1M",
+	480:  "2M",
+	720:  "3M",
+	1080: "5M",
+}
+var resolutionBufferSizes = map[int]string{
+	240:  "1M",
+	360:  "2M",
+	480:  "4M",
+	720:  "6M",
+	1080: "10M",
+}
 
 // Videos Currently being processed
 var encodingVideos EncodingVideos
@@ -88,6 +102,8 @@ func getVideoResolution(videoFile string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// FFMPEG command building
+
 func buildFfmpegFilter(numResolutions int) []string {
 	ffmpegFilter := []string{"-filter_complex"}
 	filterString := fmt.Sprintf("[0:v]split=%d", numResolutions)
@@ -101,7 +117,7 @@ func buildFfmpegFilter(numResolutions int) []string {
 
 	// Scale each stream to the appropriate resolution
 	for i := 0; i < numResolutions; i++ {
-		filterString += fmt.Sprintf("[v%d]scale=w=%d:h=%d:force_original_aspect_ratio=decrease[v%dout]", i+1, standardVideoWidths[i], standardVideoHeigths[i], i+1)
+		filterString += fmt.Sprintf("[v%d]scale=h=%d:-2[v%dout]", i+1, standardVideoHeigths[i], i+1)
 		if (i + 1) < numResolutions {
 			filterString += "; "
 		}
@@ -112,15 +128,11 @@ func buildFfmpegFilter(numResolutions int) []string {
 	return ffmpegFilter
 }
 
-/*
--map '[v1out]' -c:v:0 libx265 -b:v:0 5M -maxrate:v:0 5M -minrate:v:0 5M -bufsize:v:0 10M -preset slow -g 48 -sc_threshold 0 -keyint_min 48 -map '[v2out]' -c:v:1 libx265 -b:v:1 3M -maxrate:v:1 3M -minrate:v:1 3M -bufsize:v:1 3M -preset slow -g 48 -sc_threshold 0 -keyint_min 48 -map '[v3out]' -c:v:2 libx265 -b:v:2 1M -maxrate:v:2 1M -minrate:v:2 1M -bufsize:v:2 1M -preset slow -g 48 -sc_threshold 0 -keyint_min 48 -map a:0 -c:a:0 aac -b:a:0 96k -ac 2 -map a:0 -c:a:1 aac -b:a:1 96k -ac 2 -map a:0 -c:a:2 aac -b:a:2 48k -ac 2 -f hls -hls_time 2 -hls_playlist_type vod -hls_flags independent_segments -hls_segment_type mpegts -hls_segment_filename stream_%v-data%02d.ts -master_pl_name master.m3u8 -var_stream_map "v:0,a:0 v:1,a:1 v:2,a:2" stream_%v.m3u8
-*/
-
 func buildFfmpegVideoStreamParams(numResolutions int) []string {
 	ffmpegVideoStreamParams := []string{}
 
 	for i := 0; i < numResolutions; i++ {
-		ffmpegVideoStreamParams = append(ffmpegVideoStreamParams, "-map", fmt.Sprintf("[v%dout]", i+1), fmt.Sprintf("-c:v:%d", i), "libx265" /*fmt.Sprintf("-b:v:%d", i), "5M", fmt.Sprintf("-maxrate:v:%d", i), "5M", fmt.Sprintf("-minrate:v:%d", i), "5M", fmt.Sprintf("-bufsize:v:%d", i), "10M",*/, "-preset", "slow", "-g", "48", "-sc_threshold", "0", "-keyint_min", "48")
+		ffmpegVideoStreamParams = append(ffmpegVideoStreamParams, "-map", fmt.Sprintf("[v%dout]", i+1), fmt.Sprintf("-c:v:%d", i), "libx264", fmt.Sprintf("-b:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-maxrate:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-minrate:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-bufsize:v:%d", i), resolutionBufferSizes[int(standardVideoHeigths[i])], "-preset", "ultrafast", "-crf", "23", "-g", "48", "-sc_threshold", "0", "-keyint_min", "48")
 	}
 
 	return ffmpegVideoStreamParams
@@ -137,13 +149,11 @@ func buildFfmpegAudioStreamParams(numResolutions int) []string {
 	return ffmpegAudioStreamParams
 }
 
-// -f hls -hls_time 2 -hls_playlist_type vod -hls_flags independent_segments -hls_segment_type mpegts -hls_segment_filename stream_%v-data%02d.ts -master_pl_name master.m3u8
-func buildFfmpegHLSParams() []string {
-	ffmpegHLSParams := []string{"-f", "hls", "-hls_time", "2", "-hls_playlist_type", "vod", "-hls_flags", "independent_segments", "-hls_segment_type", "mpegts", "-hls_segment_filename", "stream_%v-data%02d.ts", "-master_pl_name", "master.m3u8"}
+func buildFfmpegHLSParams(videoFolder string) []string {
+	ffmpegHLSParams := []string{"-f", "hls", "-hls_time", "2", "-hls_playlist_type", "vod", "-hls_flags", "independent_segments", "-hls_segment_type", "mpegts", "-hls_segment_filename", path.Join(videoFolder, "stream_%v-data%02d.ts"), "-master_pl_name", "master.m3u8"}
 	return ffmpegHLSParams
 }
 
-// -var_stream_map "v:0,a:0 v:1,a:1 v:2,a:2"
 func buildFfmpegVarStreamMapParams(numResolutions int) []string {
 	ffmpegVarStreamMapParams := []string{"-var_stream_map"}
 	streamMap := ""
@@ -155,11 +165,12 @@ func buildFfmpegVarStreamMapParams(numResolutions int) []string {
 		}
 	}
 
+	ffmpegVarStreamMapParams = append(ffmpegVarStreamMapParams, streamMap)
+
 	return ffmpegVarStreamMapParams
 }
 
 // Builds the array of arguments necessary for ffmpeg to properly transcode the given video
-// This downscales the video to the maximum and below of a horizontal width of 1920, 1280, 854, 640, 426
 func buildFfmpegCommand(videoFile, videoFolder string) ([]string, error) {
 	// Initial arguments for formatting ffmpeg's output
 	ffmpegArgs := []string{"-i", videoFile, "-loglevel", "error", "-progress", "-", "-nostats"}
@@ -175,9 +186,9 @@ func buildFfmpegCommand(videoFile, videoFolder string) ([]string, error) {
 	ffmpegArgs = append(ffmpegArgs, buildFfmpegFilter(numResolutions)...)
 	ffmpegArgs = append(ffmpegArgs, buildFfmpegVideoStreamParams(numResolutions)...)
 	ffmpegArgs = append(ffmpegArgs, buildFfmpegAudioStreamParams(numResolutions)...)
-	ffmpegArgs = append(ffmpegArgs, buildFfmpegHLSParams()...)
+	ffmpegArgs = append(ffmpegArgs, buildFfmpegHLSParams(videoFolder)...)
 	ffmpegArgs = append(ffmpegArgs, buildFfmpegVarStreamMapParams(numResolutions)...)
-	ffmpegArgs = append(ffmpegArgs, "stream_%v.m3u8")
+	ffmpegArgs = append(ffmpegArgs, path.Join(videoFolder, "stream_%v.m3u8"))
 
 	return ffmpegArgs, nil
 }
@@ -270,7 +281,7 @@ func updateEncodeFrameProgress(ffmpegStdOut io.ReadCloser, videoUUID string) {
 		}
 
 		// Take the frame count out of the output of ffmpeg
-		output := string(buf)
+		output := strings.Trim(string(buf), "\u0000")
 		log.Debug().Str("ffmpeg", "stdout").Msg(output)
 		frameLine := strings.Split(output, "\n")[0]
 		frameCountStr := strings.Split(frameLine, "=")[1]

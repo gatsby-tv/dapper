@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -169,6 +168,9 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Remove scratch thumbnail file
+	os.Remove(thumbnailFilename)
+
 	json.NewEncoder(w).Encode(VideoStartEncodingResponse{ID: videoUUID, ThumbnailCID: thumbnailCID})
 
 	log.Trace().Msgf("Finished video pre-processing. Starting encoding of %s", videoFilename)
@@ -214,6 +216,9 @@ func uploadThumbnail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Remove scratch thumbnail file
+	os.Remove(thumbnailFilename)
+
 	json.NewEncoder(w).Encode(ThumbnailUploadResponse{CID: thumbnailCID})
 }
 
@@ -256,17 +261,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	}
 
 	// Remove scratch video file
-	// os.Remove(video)
-
-	// Copy the thumbnail into the transcoded video folder
-	thumbnailFileExtension := filepath.Ext(thumbnail)
-	if err = fileCopy(thumbnail, path.Join(videoFolder, "thumbnail"+thumbnailFileExtension)); err != nil {
-		log.Error().Msgf("Unable to copy thumbnail file: %s\n", err)
-		return
-	}
-
-	// Remove scratch thumbnail file
-	// os.Remove(thumbnail)
+	os.Remove(video)
 
 	// Add video folder to IPFS
 	videoCID, err := addFolderToIPFS(ctx, videoFolder)
@@ -277,7 +272,7 @@ func asyncVideoUpload(video, thumbnail, videoUUID string) {
 	log.Info().Msgf("Video folder added to IPFS: %s\n", videoCID)
 
 	// Remove converted video folder
-	// err = os.RemoveAll(videoFolder)
+	err = os.RemoveAll(videoFolder)
 	if err != nil {
 		log.Error().Msgf("Failed removing video folder: %s\n", err)
 	}
@@ -301,34 +296,5 @@ func writeMultiPartFormDataToDisk(multipartFormData io.ReadCloser, destFile stri
 
 	io.Copy(tempFile, multipartFormData)
 
-	return nil
-}
-
-// Simple file copy function
-func fileCopy(src, dst string) error {
-	sourceFileStat, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-
-	if !sourceFileStat.Mode().IsRegular() {
-		return fmt.Errorf("%s is not a regular file", src)
-	}
-
-	source, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer source.Close()
-
-	destination, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destination.Close()
-	_, err = io.Copy(destination, source)
-	if err != nil {
-		return err
-	}
 	return nil
 }

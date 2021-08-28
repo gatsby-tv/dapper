@@ -117,7 +117,7 @@ func buildFfmpegFilter(numResolutions int) []string {
 
 	// Scale each stream to the appropriate resolution
 	for i := 0; i < numResolutions; i++ {
-		filterString += fmt.Sprintf("[v%d]scale=h=%d:-2[v%dout]", i+1, standardVideoHeigths[i], i+1)
+		filterString += fmt.Sprintf("[v%d]scale=h=%d:w=%d:force_original_aspect_ratio=increase:force_divisible_by=2[v%dout]", i+1, standardVideoHeigths[i], standardVideoWidths[i], i+1)
 		if (i + 1) < numResolutions {
 			filterString += "; "
 		}
@@ -132,7 +132,7 @@ func buildFfmpegVideoStreamParams(numResolutions int) []string {
 	ffmpegVideoStreamParams := []string{}
 
 	for i := 0; i < numResolutions; i++ {
-		ffmpegVideoStreamParams = append(ffmpegVideoStreamParams, "-map", fmt.Sprintf("[v%dout]", i+1), fmt.Sprintf("-c:v:%d", i), "libx264", fmt.Sprintf("-b:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-maxrate:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-minrate:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-bufsize:v:%d", i), resolutionBufferSizes[int(standardVideoHeigths[i])], "-preset", "ultrafast", "-crf", "23", "-g", "48", "-sc_threshold", "0", "-keyint_min", "48")
+		ffmpegVideoStreamParams = append(ffmpegVideoStreamParams, "-map", fmt.Sprintf("[v%dout]", i+1), fmt.Sprintf("-c:v:%d", i), "libx264", fmt.Sprintf("-b:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-maxrate:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-minrate:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-bufsize:v:%d", i), resolutionBufferSizes[int(standardVideoHeigths[i])], "-preset", "fast", "-crf", "20", "-g", "48", "-sc_threshold", "0", "-keyint_min", "48")
 	}
 
 	return ffmpegVideoStreamParams

@@ -19,8 +19,7 @@ import (
 // Response given by dapper to a POST to "/video".
 // Gives the caller the ID of the video within dapper to check its status and get the finished CID.
 type VideoStartEncodingResponse struct {
-	ID           string `json:"id"`
-	ThumbnailCID string `json:"thumbnailCID"`
+	ID string `json:"id"`
 }
 
 // Response given by dapper to a GET to "/status".
@@ -128,14 +127,6 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 	}
 	defer video.Close()
 
-	thumbnail, thumbnailHeader, err := r.FormFile("thumbnail")
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Failed getting thumbnail from multipart form data: %s", err)
-		return
-	}
-	defer thumbnail.Close()
-
 	// Write video to disk
 	videoUUID := uuid.New().String()
 
@@ -149,34 +140,12 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Write thumbnail to disk
-	thumbnailFilename := path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder, videoUUID+"-thumbnail"+"."+strings.Split(thumbnailHeader.Filename, ".")[len(strings.Split(thumbnailHeader.Filename, "."))-1])
-
-	err = writeMultiPartFormDataToDisk(thumbnail, thumbnailFilename)
-	if err != nil {
-		log.Error().Msgf("Failed writing thumbnail to disk: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed writing thumbnail to disk")
-		return
-	}
-
-	thumbnailCID, err := addFileToIPFS(r.Context(), thumbnailFilename)
-	if err != nil {
-		log.Error().Msgf("Failed adding thumbnail to IPFS: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed adding thumbnail to IPFS")
-		return
-	}
-
-	// Remove scratch thumbnail file
-	os.Remove(thumbnailFilename)
-
-	json.NewEncoder(w).Encode(VideoStartEncodingResponse{ID: videoUUID, ThumbnailCID: thumbnailCID})
+	json.NewEncoder(w).Encode(VideoStartEncodingResponse{ID: videoUUID})
 
 	log.Trace().Msgf("Finished video pre-processing. Starting encoding of %s", videoFilename)
 
 	// Run rest of video upload async
-	go asyncVideoUpload(videoFilename, thumbnailFilename, videoUUID)
+	go asyncVideoUpload(videoFilename, videoUUID)
 }
 
 func uploadThumbnail(w http.ResponseWriter, r *http.Request) {
@@ -225,7 +194,7 @@ func uploadThumbnail(w http.ResponseWriter, r *http.Request) {
 // Private Functions
 
 // Transcode and pin video asynchronously while dapper continues to listen for requests
-func asyncVideoUpload(video, thumbnail, videoUUID string) {
+func asyncVideoUpload(video, videoUUID string) {
 	ctx := context.Background()
 	defer ctx.Done()
 

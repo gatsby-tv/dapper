@@ -200,14 +200,14 @@ func determineMaxResolutionIndex(videoFile, videoFolder string) (int, error) {
 		return 0, err
 	}
 
-	videoWidth, err := strconv.ParseInt(strings.Split(videoResolution, "x")[0], 10, 64)
+	videoHeight, err := strconv.ParseInt(strings.Split(videoResolution, "x")[1], 10, 64)
 	if err != nil {
 		return 0, err
 	}
 
 	// Find the maximum resolution to scale the video to
 	maxResolutionIndex := 0
-	for ; maxResolutionIndex < len(standardVideoWidths)-1 && videoWidth > int64(standardVideoWidths[maxResolutionIndex]); maxResolutionIndex++ {
+	for ; maxResolutionIndex < len(standardVideoHeigths) && videoHeight > int64(standardVideoHeigths[maxResolutionIndex]); maxResolutionIndex++ {
 	}
 
 	return maxResolutionIndex, nil

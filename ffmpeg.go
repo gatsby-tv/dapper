@@ -37,7 +37,7 @@ const HLSChunkLength = 10
 // Standard video resolutions for transcoding videos
 // These are the widths associated with the standard 16:9 resolutions
 var standardVideoWidths = []int64{426, 640, 854, 1280, 1920}
-var standardVideoHeigths = []int64{240, 360, 480, 720, 1080}
+var standardVideoHeights = []int64{240, 360, 480, 720, 1080}
 var resolutionBitRates = map[int]string{
 	240:  "500k",
 	360:  "1M",
@@ -117,7 +117,7 @@ func buildFfmpegFilter(numResolutions int) []string {
 
 	// Scale each stream to the appropriate resolution
 	for i := 0; i < numResolutions; i++ {
-		filterString += fmt.Sprintf("[v%d]scale=h=%d:w=%d:force_original_aspect_ratio=increase:force_divisible_by=2[v%dout]", i+1, standardVideoHeigths[i], standardVideoWidths[i], i+1)
+		filterString += fmt.Sprintf("[v%d]scale=h=%d:w=%d:force_original_aspect_ratio=increase:force_divisible_by=2[v%dout]", i+1, standardVideoHeights[i], standardVideoWidths[i], i+1)
 		if (i + 1) < numResolutions {
 			filterString += "; "
 		}
@@ -132,7 +132,7 @@ func buildFfmpegVideoStreamParams(numResolutions int) []string {
 	ffmpegVideoStreamParams := []string{}
 
 	for i := 0; i < numResolutions; i++ {
-		ffmpegVideoStreamParams = append(ffmpegVideoStreamParams, "-map", fmt.Sprintf("[v%dout]", i+1), fmt.Sprintf("-c:v:%d", i), "libx264", fmt.Sprintf("-b:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-maxrate:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-minrate:v:%d", i), resolutionBitRates[int(standardVideoHeigths[i])], fmt.Sprintf("-bufsize:v:%d", i), resolutionBufferSizes[int(standardVideoHeigths[i])], "-preset", "fast", "-crf", "20", "-g", "48", "-sc_threshold", "0", "-keyint_min", "48")
+		ffmpegVideoStreamParams = append(ffmpegVideoStreamParams, "-map", fmt.Sprintf("[v%dout]", i+1), fmt.Sprintf("-c:v:%d", i), "libx264", fmt.Sprintf("-b:v:%d", i), resolutionBitRates[int(standardVideoHeights[i])], fmt.Sprintf("-maxrate:v:%d", i), resolutionBitRates[int(standardVideoHeights[i])], fmt.Sprintf("-minrate:v:%d", i), resolutionBitRates[int(standardVideoHeights[i])], fmt.Sprintf("-bufsize:v:%d", i), resolutionBufferSizes[int(standardVideoHeights[i])], "-preset", "fast", "-crf", "20", "-g", "48", "-sc_threshold", "0", "-keyint_min", "48")
 	}
 
 	return ffmpegVideoStreamParams
@@ -180,7 +180,7 @@ func buildFfmpegCommand(videoFile, videoFolder string) ([]string, error) {
 		return nil, err
 	}
 
-	outputResolutions := standardVideoWidths[0:maxResolutionIndex]
+	outputResolutions := standardVideoHeights[0 : maxResolutionIndex+1]
 	numResolutions := len(outputResolutions)
 
 	ffmpegArgs = append(ffmpegArgs, buildFfmpegFilter(numResolutions)...)
@@ -206,8 +206,8 @@ func determineMaxResolutionIndex(videoFile, videoFolder string) (int, error) {
 	}
 
 	// Find the maximum resolution to scale the video to
-	maxResolutionIndex := 0
-	for ; maxResolutionIndex < len(standardVideoHeigths) && videoHeight > int64(standardVideoHeigths[maxResolutionIndex]); maxResolutionIndex++ {
+	maxResolutionIndex := len(standardVideoHeights) - 1
+	for ; maxResolutionIndex > 0 && videoHeight < int64(standardVideoHeights[maxResolutionIndex]); maxResolutionIndex-- {
 	}
 
 	return maxResolutionIndex, nil

@@ -11,4 +11,4 @@ build:
 	-t gatsbytv/$(APP_NAME):latest .
 
 push:
-	docker push gatsbytv/$(APP_NAME):$(APP_VERSION)-$(BUILD) --all-tags
+	docker push gatsbytv/$(APP_NAME) --all-tags

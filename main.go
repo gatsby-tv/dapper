@@ -20,6 +20,7 @@ const configFileName = "configuration"
 const configFileExtension = "toml"
 
 func main() {
+	log.Info().Msgf("Dapper version: %s-%s", CurrentVersionNumber, CurrentCommit)
 	readConfigFile()
 	log.Trace().Msg("Successfully loaded config")
 

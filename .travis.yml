@@ -13,9 +13,9 @@ jobs:
   include:
     - stage: publish
       before_script:
-        - docker build -t gatsbytv/dapper .
         - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USER" --password-stdin
-
       script:
-        - docker tag gatsbytv/dapper gatsbytv/dapper:latest
-        - docker push gatsbytv/dapper:latest
+        # Build dockerfile
+        - make build
+        # Push tags
+        - make push

@@ -1,7 +1,8 @@
 FROM golang:1.16.3 AS build
 WORKDIR /dapper
+ARG BUILD
 COPY *.go go.mod go.sum ./
-RUN go build
+RUN go build -ldflags "-X main.CurrentCommit=$BUILD" -o dapper
 
 FROM linuxserver/ffmpeg:version-4.3-cli
 WORKDIR /dapper

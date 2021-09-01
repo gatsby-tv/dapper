@@ -30,6 +30,7 @@ type VideoEncodingStatusResponse struct {
 	Progress int64  `json:"progress"`
 	CID      string `json:"cid"`
 	Length   int    `json:"length"`
+	Error    string `json:"error"`
 }
 
 // Response given by dapper to a POST to "/thumbnail".
@@ -80,10 +81,16 @@ func encodingStatus(w http.ResponseWriter, r *http.Request) {
 	if progress, ok := encodingVideos.Videos[keys[0]]; ok {
 		// Check if the encode has finished
 		if progress.CurrentProgress == -1 {
-			statusResponse := VideoEncodingStatusResponse{Finished: true, CID: progress.CID, Length: progress.Length}
+			if progress.Error != nil {
+				statusResponse := VideoEncodingStatusResponse{Finished: true, Error: progress.Error.Error()}
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(statusResponse)
+			} else {
+				statusResponse := VideoEncodingStatusResponse{Finished: true, CID: progress.CID, Length: progress.Length}
 
-			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(statusResponse)
+				w.WriteHeader(http.StatusCreated)
+				json.NewEncoder(w).Encode(statusResponse)
+			}
 
 			delete(encodingVideos.Videos, keys[0])
 		} else {
@@ -207,6 +214,9 @@ func asyncVideoUpload(video, videoUUID string) {
 	videoLength, err := getVideoLength(video)
 	if err != nil {
 		log.Error().Msgf("Unable to get video length: %s\n", err)
+		encodingVideos.mutex.Lock()
+		encodingVideos.Videos[videoUUID] = EncodingVideo{Error: err, CurrentProgress: -1}
+		encodingVideos.mutex.Unlock()
 		return
 	}
 
@@ -214,6 +224,9 @@ func asyncVideoUpload(video, videoUUID string) {
 	videoFrames, err := getVideoFrames(video, videoLength)
 	if err != nil {
 		log.Error().Msgf("Unable to count video frames: %s\n", err)
+		encodingVideos.mutex.Lock()
+		encodingVideos.Videos[videoUUID] = EncodingVideo{Error: err, CurrentProgress: -1}
+		encodingVideos.mutex.Unlock()
 		return
 	}
 
@@ -226,6 +239,9 @@ func asyncVideoUpload(video, videoUUID string) {
 	videoFolder, err := convertToHLS(video, videoUUID)
 	if err != nil {
 		log.Error().Msgf("Unable to convert video to HLS: %s\n", err)
+		encodingVideos.mutex.Lock()
+		encodingVideos.Videos[videoUUID] = EncodingVideo{Error: err, CurrentProgress: -1}
+		encodingVideos.mutex.Unlock()
 		return
 	}
 
@@ -236,6 +252,9 @@ func asyncVideoUpload(video, videoUUID string) {
 	videoCID, err := addFolderToIPFS(ctx, videoFolder)
 	if err != nil {
 		log.Error().Msgf("Unable to add video folder to IPFS: %s\n", err)
+		encodingVideos.mutex.Lock()
+		encodingVideos.Videos[videoUUID] = EncodingVideo{Error: err, CurrentProgress: -1}
+		encodingVideos.mutex.Unlock()
 		return
 	}
 	log.Info().Msgf("Video folder added to IPFS: %s\n", videoCID)

@@ -11,7 +11,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/mux"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
@@ -47,17 +48,20 @@ const videoScratchFolder = "scratch"
 
 // Starts listening for requests on the given port
 func handleRequests(port int) {
-	myRouter := mux.NewRouter().StrictSlash(true)
+	e := echo.New()
+
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
 
 	// GETs
-	// myRouter.HandleFunc("/traffic", getCurrentOutTraffic).Methods("GET")
-	myRouter.HandleFunc("/status", encodingStatus).Methods("GET")
+	// e.GET("/traffic", getCurrentOutTraffic)
+	e.GET("/status", encodingStatus)
 
 	// POSTs
-	myRouter.HandleFunc("/video", uploadVideo).Methods("POST")
-	myRouter.HandleFunc("/thumbnail", uploadThumbnail).Methods("POST")
+	e.POST("/video", uploadVideo)
+	e.POST("/thumbnail", uploadThumbnail)
 
-	log.Fatal().Msg(http.ListenAndServe(fmt.Sprintf(":%d", port), myRouter).Error())
+	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))
 }
 
 // Routes
@@ -65,48 +69,45 @@ func handleRequests(port int) {
 // GETs
 
 // Returns the status of the encoding job or CID if it is completed
-func encodingStatus(w http.ResponseWriter, r *http.Request) {
-	keys, ok := r.URL.Query()["id"]
+func encodingStatus(c echo.Context) error {
+	var response error
+	keys := c.QueryParam("id")
 
 	// Check that the id param was given
-	if !ok || len(keys[0]) < 1 {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Url Param 'id' is missing")
-		return
+	if len(keys) < 1 {
+		return c.String(http.StatusBadRequest, "Param 'id' is missing")
 	}
 
 	encodingVideos.mutex.Lock()
 
 	// Check that the video is in the encoding map
-	if progress, ok := encodingVideos.Videos[keys[0]]; ok {
+	if progress, ok := encodingVideos.Videos[keys]; ok {
 		// Check if the encode has finished
 		if progress.CurrentProgress == -1 {
 			if progress.Error != nil {
 				statusResponse := VideoEncodingStatusResponse{Finished: true, Error: progress.Error.Error()}
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(statusResponse)
+				response = c.JSON(http.StatusInternalServerError, statusResponse)
 			} else {
 				statusResponse := VideoEncodingStatusResponse{Finished: true, CID: progress.CID, Length: progress.Length}
 
-				w.WriteHeader(http.StatusCreated)
-				json.NewEncoder(w).Encode(statusResponse)
+				response = c.JSON(http.StatusCreated, statusResponse)
 			}
 
-			delete(encodingVideos.Videos, keys[0])
+			delete(encodingVideos.Videos, keys)
 		} else {
 			statusResponse := VideoEncodingStatusResponse{Finished: false, Progress: progress.CurrentProgress}
 
-			w.WriteHeader(http.StatusAccepted)
-			json.NewEncoder(w).Encode(statusResponse)
+			response = c.JSON(http.StatusAccepted, statusResponse)
 		}
 	} else {
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "Specified ID is not transcoding.")
+		response = c.String(http.StatusNotFound, "Specified ID is not transcoding.")
 	}
 
 	encodingVideos.mutex.Unlock()
 
 	log.Trace().Msgf("Returning status for %s", keys[0])
+
+	return response
 }
 
 // func getCurrentOutTraffic(w http.ResponseWriter, r *http.Request) {

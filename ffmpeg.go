@@ -29,6 +29,7 @@ type EncodingVideo struct {
 	CurrentProgress int64
 	CID             string
 	Length          int
+	Error           error
 }
 
 // HLSChunkLength - Size of HLS pieces in seconds
@@ -55,6 +56,8 @@ var resolutionBufferSizes = map[int]string{
 
 // Videos Currently being processed
 var encodingVideos EncodingVideos
+
+// Functions used outside of this file
 
 // Uses `ffprobe` to find the length of the video in seconds (ceilinged to next largest int)
 func getVideoLength(videoFile string) (videoLength int, err error) {
@@ -90,6 +93,53 @@ func getVideoFrames(videoFile string, videoLength int) (int64, error) {
 
 	return int64(videoLength) * videoFPS, nil
 }
+
+// Converts the given video to HLS chunks and places them in a folder named with the video's UUID
+func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
+	// Create folder to store HLS video in
+	videoFolder = path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoUUID)
+	err = os.Mkdir(videoFolder, 0755)
+	if err != nil {
+		return "", err
+	}
+
+	// Build the ffmpeg command that transcodes the given video to multiple HLS streams of different resolutions
+	ffmpegArgs, err := buildFfmpegCommand(videoFile, videoFolder)
+	if err != nil {
+		return "", errors.New("Failed to build ffmpeg command: " + err.Error())
+	}
+	log.Debug().Msg(strings.Join(ffmpegArgs, " "))
+
+	// Convert video
+	cmd := exec.Command(viper.GetString("ffmpeg.ffmpegDir"), ffmpegArgs...)
+
+	log.Info().Msgf("Converting %s to HLS...\n", videoFile)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return "", err
+	}
+	err = cmd.Start()
+	if err != nil {
+		return "", err
+	}
+
+	// Create a listener for ffmpeg's output to update `encodingVideos`
+	go updateEncodeFrameProgress(stdout, videoUUID)
+	go logStdErr(stderr)
+
+	err = cmd.Wait()
+	if err != nil {
+		return "", err
+	}
+
+	return videoFolder, nil
+}
+
+// Private Functions
 
 // Uses ffmpeg to get the height and width of given video (as a string)
 func getVideoResolution(videoFile string) (string, error) {
@@ -211,51 +261,6 @@ func determineMaxResolutionIndex(videoFile, videoFolder string) (int, error) {
 	}
 
 	return maxResolutionIndex, nil
-}
-
-// Converts the given video to HLS chunks and places them in a folder named with the video's UUID
-func convertToHLS(videoFile, videoUUID string) (videoFolder string, err error) {
-	// Create folder to store HLS video in
-	videoFolder = path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoUUID)
-	err = os.Mkdir(videoFolder, 0755)
-	if err != nil {
-		return "", err
-	}
-
-	// Build the ffmpeg command that transcodes the given video to multiple HLS streams of different resolutions
-	ffmpegArgs, err := buildFfmpegCommand(videoFile, videoFolder)
-	if err != nil {
-		return "", errors.New("Failed to build ffmpeg command: " + err.Error())
-	}
-	log.Debug().Msg(strings.Join(ffmpegArgs, " "))
-
-	// Convert video
-	cmd := exec.Command(viper.GetString("ffmpeg.ffmpegDir"), ffmpegArgs...)
-
-	log.Info().Msgf("Converting %s to HLS...\n", videoFile)
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return "", err
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return "", err
-	}
-	err = cmd.Start()
-	if err != nil {
-		return "", err
-	}
-
-	// Create a listener for ffmpeg's output to update `encodingVideos`
-	go updateEncodeFrameProgress(stdout, videoUUID)
-	go logStdErr(stderr)
-
-	err = cmd.Wait()
-	if err != nil {
-		return "", err
-	}
-
-	return videoFolder, nil
 }
 
 func logStdErr(ffmpegStdErr io.ReadCloser) {

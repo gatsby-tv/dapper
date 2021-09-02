@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,7 +10,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/mux"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
@@ -39,25 +39,26 @@ type ThumbnailUploadResponse struct {
 	CID string `json:"cid"`
 }
 
-// Maximum memory to attempt to store multipart form data in.
-const multipartMaxMemory = 50 << 20 // 50MiB
 // Folder name to store intermediate multipart form data in.
 // This folder is placed in the temp video storage folder.
 const videoScratchFolder = "scratch"
 
 // Starts listening for requests on the given port
 func handleRequests(port int) {
-	myRouter := mux.NewRouter().StrictSlash(true)
+	e := echo.New()
+
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
 
 	// GETs
-	// myRouter.HandleFunc("/traffic", getCurrentOutTraffic).Methods("GET")
-	myRouter.HandleFunc("/status", encodingStatus).Methods("GET")
+	// e.GET("/traffic", getCurrentOutTraffic)
+	e.GET("/status", encodingStatus)
 
 	// POSTs
-	myRouter.HandleFunc("/video", uploadVideo).Methods("POST")
-	myRouter.HandleFunc("/thumbnail", uploadThumbnail).Methods("POST")
+	e.POST("/video", uploadVideo)
+	e.POST("/thumbnail", uploadThumbnail)
 
-	log.Fatal().Msg(http.ListenAndServe(fmt.Sprintf(":%d", port), myRouter).Error())
+	e.Logger.Fatal(e.Start(fmt.Sprintf(":%d", port)))
 }
 
 // Routes
@@ -65,48 +66,45 @@ func handleRequests(port int) {
 // GETs
 
 // Returns the status of the encoding job or CID if it is completed
-func encodingStatus(w http.ResponseWriter, r *http.Request) {
-	keys, ok := r.URL.Query()["id"]
+func encodingStatus(c echo.Context) error {
+	var response error
+	keys := c.QueryParam("id")
 
 	// Check that the id param was given
-	if !ok || len(keys[0]) < 1 {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Url Param 'id' is missing")
-		return
+	if len(keys) < 1 {
+		return c.String(http.StatusBadRequest, "Param 'id' is missing")
 	}
 
 	encodingVideos.mutex.Lock()
 
 	// Check that the video is in the encoding map
-	if progress, ok := encodingVideos.Videos[keys[0]]; ok {
+	if progress, ok := encodingVideos.Videos[keys]; ok {
 		// Check if the encode has finished
 		if progress.CurrentProgress == -1 {
 			if progress.Error != nil {
 				statusResponse := VideoEncodingStatusResponse{Finished: true, Error: progress.Error.Error()}
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(statusResponse)
+				response = c.JSON(http.StatusInternalServerError, statusResponse)
 			} else {
 				statusResponse := VideoEncodingStatusResponse{Finished: true, CID: progress.CID, Length: progress.Length}
 
-				w.WriteHeader(http.StatusCreated)
-				json.NewEncoder(w).Encode(statusResponse)
+				response = c.JSON(http.StatusCreated, statusResponse)
 			}
 
-			delete(encodingVideos.Videos, keys[0])
+			delete(encodingVideos.Videos, keys)
 		} else {
 			statusResponse := VideoEncodingStatusResponse{Finished: false, Progress: progress.CurrentProgress}
 
-			w.WriteHeader(http.StatusAccepted)
-			json.NewEncoder(w).Encode(statusResponse)
+			response = c.JSON(http.StatusAccepted, statusResponse)
 		}
 	} else {
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "Specified ID is not transcoding.")
+		response = c.String(http.StatusNotFound, "Specified ID is not transcoding.")
 	}
 
 	encodingVideos.mutex.Unlock()
 
 	log.Trace().Msgf("Returning status for %s", keys[0])
+
+	return response
 }
 
 // func getCurrentOutTraffic(w http.ResponseWriter, r *http.Request) {
@@ -116,21 +114,16 @@ func encodingStatus(w http.ResponseWriter, r *http.Request) {
 // POSTs
 
 // Take video and thumbnail from multipart form data, transfer it to the disk, convert it to HLS, then pin it with IPFS.
-func uploadVideo(w http.ResponseWriter, r *http.Request) {
-	// Parse multipart form data
-	err := r.ParseMultipartForm(multipartMaxMemory)
+func uploadVideo(c echo.Context) error {
+	// Check for the necessary files in the multipart form data
+	videoHeader, err := c.FormFile("video")
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Error parsing multipart form data: %s", err)
-		return
+		return c.String(http.StatusBadRequest, fmt.Sprintf("Failed getting video from multipart form data: %s", err))
 	}
 
-	// Check for the necessary files in the multipart form data
-	video, videoHeader, err := r.FormFile("video")
+	video, err := videoHeader.Open()
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Failed getting video from multipart form data: %s", err)
-		return
+		return c.String(http.StatusBadRequest, fmt.Sprintf("Failed opening video from multipart form data: %s", err))
 	}
 	defer video.Close()
 
@@ -142,34 +135,27 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 	err = writeMultiPartFormDataToDisk(video, videoFilename)
 	if err != nil {
 		log.Error().Msgf("Failed writing video to disk: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed writing video to disk")
-		return
+		return c.String(http.StatusInternalServerError, "Failed writing video to disk: %s")
 	}
-
-	json.NewEncoder(w).Encode(VideoStartEncodingResponse{ID: videoUUID})
 
 	log.Trace().Msgf("Finished video pre-processing. Starting encoding of %s", videoFilename)
 
 	// Run rest of video upload async
 	go asyncVideoUpload(videoFilename, videoUUID)
+
+	return c.JSON(http.StatusAccepted, VideoStartEncodingResponse{ID: videoUUID})
 }
 
-func uploadThumbnail(w http.ResponseWriter, r *http.Request) {
-	// Parse multipart form data
-	err := r.ParseMultipartForm(multipartMaxMemory)
+func uploadThumbnail(c echo.Context) error {
+	// Check for the necessary files in the multipart form data
+	thumbnailHeader, err := c.FormFile("thumbnail")
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Error parsing multipart form data: %s", err)
-		return
+		return c.String(http.StatusBadRequest, fmt.Sprintf("Failed getting thumbnail from multipart form data: %s", err))
 	}
 
-	// Check for the necessary files in the multipart form data
-	thumbnail, thumbnailHeader, err := r.FormFile("thumbnail")
+	thumbnail, err := thumbnailHeader.Open()
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Failed getting thumbnail from multipart form data: %s", err)
-		return
+		return c.String(http.StatusBadRequest, fmt.Sprintf("Failed opening thumbnail from multipart form data: %s", err))
 	}
 	defer thumbnail.Close()
 
@@ -179,23 +165,19 @@ func uploadThumbnail(w http.ResponseWriter, r *http.Request) {
 	err = writeMultiPartFormDataToDisk(thumbnail, thumbnailFilename)
 	if err != nil {
 		log.Error().Msgf("Failed writing thumbnail to disk: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed writing thumbnail to disk")
-		return
+		return c.String(http.StatusInternalServerError, "Failed writing thumbnail to disk")
 	}
 
-	thumbnailCID, err := addFileToIPFS(r.Context(), thumbnailFilename)
+	thumbnailCID, err := addFileToIPFS(c.Request().Context(), thumbnailFilename)
 	if err != nil {
 		log.Error().Msgf("Failed adding thumbnail to IPFS: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed adding thumbnail to IPFS")
-		return
+		return c.String(http.StatusInternalServerError, "Failed adding thumbnail to IPFS")
 	}
 
 	// Remove scratch thumbnail file
 	os.Remove(thumbnailFilename)
 
-	json.NewEncoder(w).Encode(ThumbnailUploadResponse{CID: thumbnailCID})
+	return c.JSON(http.StatusCreated, ThumbnailUploadResponse{CID: thumbnailCID})
 }
 
 // Private Functions

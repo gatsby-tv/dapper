@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,8 +39,6 @@ type ThumbnailUploadResponse struct {
 	CID string `json:"cid"`
 }
 
-// Maximum memory to attempt to store multipart form data in.
-const multipartMaxMemory = 50 << 20 // 50MiB
 // Folder name to store intermediate multipart form data in.
 // This folder is placed in the temp video storage folder.
 const videoScratchFolder = "scratch"
@@ -117,21 +114,16 @@ func encodingStatus(c echo.Context) error {
 // POSTs
 
 // Take video and thumbnail from multipart form data, transfer it to the disk, convert it to HLS, then pin it with IPFS.
-func uploadVideo(w http.ResponseWriter, r *http.Request) {
-	// Parse multipart form data
-	err := r.ParseMultipartForm(multipartMaxMemory)
+func uploadVideo(c echo.Context) error {
+	// Check for the necessary files in the multipart form data
+	videoHeader, err := c.FormFile("video")
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Error parsing multipart form data: %s", err)
-		return
+		return c.String(http.StatusBadRequest, fmt.Sprintf("Failed getting video from multipart form data: %s", err))
 	}
 
-	// Check for the necessary files in the multipart form data
-	video, videoHeader, err := r.FormFile("video")
+	video, err := videoHeader.Open()
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Failed getting video from multipart form data: %s", err)
-		return
+		return c.String(http.StatusBadRequest, fmt.Sprintf("Failed opening video from multipart form data: %s", err))
 	}
 	defer video.Close()
 
@@ -143,34 +135,27 @@ func uploadVideo(w http.ResponseWriter, r *http.Request) {
 	err = writeMultiPartFormDataToDisk(video, videoFilename)
 	if err != nil {
 		log.Error().Msgf("Failed writing video to disk: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed writing video to disk")
-		return
+		return c.String(http.StatusInternalServerError, "Failed writing video to disk: %s")
 	}
-
-	json.NewEncoder(w).Encode(VideoStartEncodingResponse{ID: videoUUID})
 
 	log.Trace().Msgf("Finished video pre-processing. Starting encoding of %s", videoFilename)
 
 	// Run rest of video upload async
 	go asyncVideoUpload(videoFilename, videoUUID)
+
+	return c.JSON(http.StatusAccepted, VideoStartEncodingResponse{ID: videoUUID})
 }
 
-func uploadThumbnail(w http.ResponseWriter, r *http.Request) {
-	// Parse multipart form data
-	err := r.ParseMultipartForm(multipartMaxMemory)
+func uploadThumbnail(c echo.Context) error {
+	// Check for the necessary files in the multipart form data
+	thumbnailHeader, err := c.FormFile("thumbnail")
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Error parsing multipart form data: %s", err)
-		return
+		return c.String(http.StatusBadRequest, fmt.Sprintf("Failed getting thumbnail from multipart form data: %s", err))
 	}
 
-	// Check for the necessary files in the multipart form data
-	thumbnail, thumbnailHeader, err := r.FormFile("thumbnail")
+	thumbnail, err := thumbnailHeader.Open()
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(w, "Failed getting thumbnail from multipart form data: %s", err)
-		return
+		return c.String(http.StatusBadRequest, fmt.Sprintf("Failed opening thumbnail from multipart form data: %s", err))
 	}
 	defer thumbnail.Close()
 
@@ -180,23 +165,19 @@ func uploadThumbnail(w http.ResponseWriter, r *http.Request) {
 	err = writeMultiPartFormDataToDisk(thumbnail, thumbnailFilename)
 	if err != nil {
 		log.Error().Msgf("Failed writing thumbnail to disk: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed writing thumbnail to disk")
-		return
+		return c.String(http.StatusInternalServerError, "Failed writing thumbnail to disk")
 	}
 
-	thumbnailCID, err := addFileToIPFS(r.Context(), thumbnailFilename)
+	thumbnailCID, err := addFileToIPFS(c.Request().Context(), thumbnailFilename)
 	if err != nil {
 		log.Error().Msgf("Failed adding thumbnail to IPFS: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Failed adding thumbnail to IPFS")
-		return
+		return c.String(http.StatusInternalServerError, "Failed adding thumbnail to IPFS")
 	}
 
 	// Remove scratch thumbnail file
 	os.Remove(thumbnailFilename)
 
-	json.NewEncoder(w).Encode(ThumbnailUploadResponse{CID: thumbnailCID})
+	return c.JSON(http.StatusCreated, ThumbnailUploadResponse{CID: thumbnailCID})
 }
 
 // Private Functions

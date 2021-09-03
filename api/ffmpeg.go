@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"bufio"
@@ -18,7 +18,7 @@ import (
 )
 
 // Data structure containing the vidoes currently being encoded/processed
-type EncodingVideos struct {
+type EncodingVideosList struct {
 	mutex  sync.Mutex
 	Videos map[string]EncodingVideo
 }
@@ -55,7 +55,7 @@ var resolutionBufferSizes = map[int]string{
 }
 
 // Videos Currently being processed
-var encodingVideos EncodingVideos
+var EncodingVideos EncodingVideosList
 
 // Functions used outside of this file
 
@@ -297,19 +297,19 @@ func updateEncodeFrameProgress(ffmpegStdOut io.ReadCloser, videoUUID string) {
 			continue
 		}
 
-		encodingVideos.mutex.Lock()
+		EncodingVideos.mutex.Lock()
 		// Calculate the progress percentage
-		encodingProgress := int64(math.Floor(float64(frameCount) * 100 / float64(encodingVideos.Videos[videoUUID].TotalFrames)))
+		encodingProgress := int64(math.Floor(float64(frameCount) * 100 / float64(EncodingVideos.Videos[videoUUID].TotalFrames)))
 		// Update the encoding map
-		tempStruct := EncodingVideo{TotalFrames: encodingVideos.Videos[videoUUID].TotalFrames, CurrentProgress: encodingProgress}
-		encodingVideos.Videos[videoUUID] = tempStruct
-		encodingVideos.mutex.Unlock()
+		tempStruct := EncodingVideo{TotalFrames: EncodingVideos.Videos[videoUUID].TotalFrames, CurrentProgress: encodingProgress}
+		EncodingVideos.Videos[videoUUID] = tempStruct
+		EncodingVideos.mutex.Unlock()
 	}
 
 	// When the stdout reader is closed, ffmpeg has finished
 	// Update the encoding map to signal that the job has completed
-	encodingVideos.mutex.Lock()
-	tempStruct := EncodingVideo{TotalFrames: encodingVideos.Videos[videoUUID].TotalFrames, CurrentProgress: 100}
-	encodingVideos.Videos[videoUUID] = tempStruct
-	encodingVideos.mutex.Unlock()
+	EncodingVideos.mutex.Lock()
+	tempStruct := EncodingVideo{TotalFrames: EncodingVideos.Videos[videoUUID].TotalFrames, CurrentProgress: 100}
+	EncodingVideos.Videos[videoUUID] = tempStruct
+	EncodingVideos.mutex.Unlock()
 }

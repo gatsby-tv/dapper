@@ -8,6 +8,10 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
+
+	"github.com/gatsby-tv/dapper/api"
+	_ "github.com/gatsby-tv/dapper/docs"
+	"github.com/gatsby-tv/dapper/ipfs"
 )
 
 // Folder to search for config file
@@ -33,15 +37,15 @@ func main() {
 	}
 
 	// Create video scratch path if it does not exist
-	if _, err := os.Stat(path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder)); os.IsNotExist(err) {
-		err := os.Mkdir(path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder), 0755)
+	if _, err := os.Stat(path.Join(viper.GetString("Videos.TempVideoStorageFolder"), api.VideoScratchFolder)); os.IsNotExist(err) {
+		err := os.Mkdir(path.Join(viper.GetString("Videos.TempVideoStorageFolder"), api.VideoScratchFolder), 0755)
 		if err != nil {
 			log.Fatal().Msgf("Failed setting up video directory: %s", err)
 		}
 	}
 
 	// Setup memory map for keeping track of videos being processed
-	encodingVideos.Videos = make(map[string]EncodingVideo)
+	api.EncodingVideos.Videos = make(map[string]api.EncodingVideo)
 
 	startDaemon(*portPtr)
 }
@@ -86,11 +90,11 @@ func startDaemon(port int) {
 
 	log.Trace().Msg("Setting up IPFS")
 
-	err := startIPFS(ctx)
+	err := ipfs.StartIPFS(ctx)
 	if err != nil {
 		log.Fatal().Msgf("Failed to start IPFS: %s", err)
 	}
 
 	log.Info().Msg("Ready for requests")
-	handleRequests(port)
+	api.HandleRequests(port)
 }

@@ -1,4 +1,4 @@
-package main
+package ipfs
 
 import (
 	"bytes"
@@ -198,7 +198,7 @@ func getUnixfsNode(path string) (files.Node, error) {
 
 // Add content to IPFS
 
-func addFolderToIPFS(ctx context.Context, path string) (string, error) {
+func AddFolderToIPFS(ctx context.Context, path string) (string, error) {
 	if useExistingIPFSNode {
 		return addFolderToRemoteIPFS(path)
 	} else {
@@ -302,7 +302,7 @@ func addFolderToRemoteIPFS(videoFolder string) (string, error) {
 	return folderResponse.Hash, nil
 }
 
-func addFileToIPFS(ctx context.Context, path string) (string, error) {
+func AddFileToIPFS(ctx context.Context, path string) (string, error) {
 	if useExistingIPFSNode {
 		return addFileToRemoteIPFS(path)
 	} else {
@@ -433,7 +433,7 @@ func mustOpen(f string) (*os.File, error) {
 	return r, nil
 }
 
-func startIPFS(ctx context.Context) error {
+func StartIPFS(ctx context.Context) error {
 	// Read config data
 	ipfsURI = viper.GetString("IPFS.ipfsURI")
 	ipfsRepoPath := viper.GetString("IPFS.ipfsRepoDir")

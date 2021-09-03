@@ -1,22 +1,31 @@
 package docs
 
-import "github.com/gatsby-tv/dapper/api"
+import (
+	"github.com/gatsby-tv/dapper/api"
+)
 
-// swagger:route GET /status foobar-tag idOfFoobarEndpoint
+// swagger:route GET /status encodingStatus-tag encodingStatus
 // Retrieve the status of a currently encoding video.
 // responses:
 //   200: success
+//   500: processingError
 
-// This text will appear as description of your response body.
+// swagger:parameters encodingStatus
+type videoEncodingStatusParamsWrapper struct {
+	// ID of the video to get the status of.
+	// in:query
+	ID string `json:"id"`
+}
+
+// Contents of the body will depend on the current step of video transcoding.
 // swagger:response success
-type videoEncodingStatusResponseWrapper struct {
+type videoEncodingStatusSuccessResponseWrapper struct {
 	// in:body
 	Body api.VideoEncodingStatusResponse
 }
 
-// // swagger:parameters idOfFoobarEndpoint
-// type foobarParamsWrapper struct {
-// 	// This text will appear as description of your request body.
-// 	// in:body
-// 	Body api.FooBarRequest
-// }
+// swagger:response processingError
+type videoEncodingStatusProcessingErrorResponseWrapper struct {
+	// in:body
+	Body api.VideoEncodingStatusResponse
+}

@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/gatsby-tv/dapper/ipfs"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -41,10 +42,10 @@ type ThumbnailUploadResponse struct {
 
 // Folder name to store intermediate multipart form data in.
 // This folder is placed in the temp video storage folder.
-const videoScratchFolder = "scratch"
+const VideoScratchFolder = "scratch"
 
 // Starts listening for requests on the given port
-func handleRequests(port int) {
+func HandleRequests(port int) {
 	e := echo.New()
 
 	e.Use(middleware.Logger())
@@ -75,10 +76,10 @@ func encodingStatus(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "Param 'id' is missing")
 	}
 
-	encodingVideos.mutex.Lock()
+	EncodingVideos.mutex.Lock()
 
 	// Check that the video is in the encoding map
-	if progress, ok := encodingVideos.Videos[keys]; ok {
+	if progress, ok := EncodingVideos.Videos[keys]; ok {
 		// Check if the encode has finished
 		if progress.CurrentProgress == -1 {
 			if progress.Error != nil {
@@ -90,7 +91,7 @@ func encodingStatus(c echo.Context) error {
 				response = c.JSON(http.StatusCreated, statusResponse)
 			}
 
-			delete(encodingVideos.Videos, keys)
+			delete(EncodingVideos.Videos, keys)
 		} else {
 			statusResponse := VideoEncodingStatusResponse{Finished: false, Progress: progress.CurrentProgress}
 
@@ -100,7 +101,7 @@ func encodingStatus(c echo.Context) error {
 		response = c.String(http.StatusNotFound, "Specified ID is not transcoding.")
 	}
 
-	encodingVideos.mutex.Unlock()
+	EncodingVideos.mutex.Unlock()
 
 	log.Trace().Msgf("Returning status for %s", keys[0])
 
@@ -130,7 +131,7 @@ func uploadVideo(c echo.Context) error {
 	// Write video to disk
 	videoUUID := uuid.New().String()
 
-	videoFilename := path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder, videoUUID+"."+strings.Split(videoHeader.Filename, ".")[len(strings.Split(videoHeader.Filename, "."))-1])
+	videoFilename := path.Join(viper.GetString("Videos.TempVideoStorageFolder"), VideoScratchFolder, videoUUID+"."+strings.Split(videoHeader.Filename, ".")[len(strings.Split(videoHeader.Filename, "."))-1])
 
 	err = writeMultiPartFormDataToDisk(video, videoFilename)
 	if err != nil {
@@ -160,7 +161,7 @@ func uploadThumbnail(c echo.Context) error {
 	defer thumbnail.Close()
 
 	// Write thumbnail to disk
-	thumbnailFilename := path.Join(viper.GetString("Videos.TempVideoStorageFolder"), videoScratchFolder, uuid.New().String()+"-thumbnail"+"."+strings.Split(thumbnailHeader.Filename, ".")[len(strings.Split(thumbnailHeader.Filename, "."))-1])
+	thumbnailFilename := path.Join(viper.GetString("Videos.TempVideoStorageFolder"), VideoScratchFolder, uuid.New().String()+"-thumbnail"+"."+strings.Split(thumbnailHeader.Filename, ".")[len(strings.Split(thumbnailHeader.Filename, "."))-1])
 
 	err = writeMultiPartFormDataToDisk(thumbnail, thumbnailFilename)
 	if err != nil {
@@ -168,7 +169,7 @@ func uploadThumbnail(c echo.Context) error {
 		return c.String(http.StatusInternalServerError, "Failed writing thumbnail to disk")
 	}
 
-	thumbnailCID, err := addFileToIPFS(c.Request().Context(), thumbnailFilename)
+	thumbnailCID, err := ipfs.AddFileToIPFS(c.Request().Context(), thumbnailFilename)
 	if err != nil {
 		log.Error().Msgf("Failed adding thumbnail to IPFS: %s", err)
 		return c.String(http.StatusInternalServerError, "Failed adding thumbnail to IPFS")
@@ -188,17 +189,17 @@ func asyncVideoUpload(video, videoUUID string) {
 	defer ctx.Done()
 
 	// Create entry for video in the global map
-	encodingVideos.mutex.Lock()
-	encodingVideos.Videos[videoUUID] = EncodingVideo{TotalFrames: 1, CurrentProgress: 0}
-	encodingVideos.mutex.Unlock()
+	EncodingVideos.mutex.Lock()
+	EncodingVideos.Videos[videoUUID] = EncodingVideo{TotalFrames: 1, CurrentProgress: 0}
+	EncodingVideos.mutex.Unlock()
 
 	// Get the length of the video in seconds
 	videoLength, err := getVideoLength(video)
 	if err != nil {
 		log.Error().Msgf("Unable to get video length: %s\n", err)
-		encodingVideos.mutex.Lock()
-		encodingVideos.Videos[videoUUID] = EncodingVideo{Error: err, CurrentProgress: -1}
-		encodingVideos.mutex.Unlock()
+		EncodingVideos.mutex.Lock()
+		EncodingVideos.Videos[videoUUID] = EncodingVideo{Error: err, CurrentProgress: -1}
+		EncodingVideos.mutex.Unlock()
 		return
 	}
 
@@ -206,24 +207,24 @@ func asyncVideoUpload(video, videoUUID string) {
 	videoFrames, err := getVideoFrames(video, videoLength)
 	if err != nil {
 		log.Error().Msgf("Unable to count video frames: %s\n", err)
-		encodingVideos.mutex.Lock()
-		encodingVideos.Videos[videoUUID] = EncodingVideo{Error: err, CurrentProgress: -1}
-		encodingVideos.mutex.Unlock()
+		EncodingVideos.mutex.Lock()
+		EncodingVideos.Videos[videoUUID] = EncodingVideo{Error: err, CurrentProgress: -1}
+		EncodingVideos.mutex.Unlock()
 		return
 	}
 
 	// Update the global map with the total number of frames in the current video
-	encodingVideos.mutex.Lock()
-	encodingVideos.Videos[videoUUID] = EncodingVideo{TotalFrames: videoFrames, CurrentProgress: 0}
-	encodingVideos.mutex.Unlock()
+	EncodingVideos.mutex.Lock()
+	EncodingVideos.Videos[videoUUID] = EncodingVideo{TotalFrames: videoFrames, CurrentProgress: 0}
+	EncodingVideos.mutex.Unlock()
 
 	// Convert video to HLS pieces
 	videoFolder, err := convertToHLS(video, videoUUID)
 	if err != nil {
 		log.Error().Msgf("Unable to convert video to HLS: %s\n", err)
-		encodingVideos.mutex.Lock()
-		encodingVideos.Videos[videoUUID] = EncodingVideo{Error: err, CurrentProgress: -1}
-		encodingVideos.mutex.Unlock()
+		EncodingVideos.mutex.Lock()
+		EncodingVideos.Videos[videoUUID] = EncodingVideo{Error: err, CurrentProgress: -1}
+		EncodingVideos.mutex.Unlock()
 		return
 	}
 
@@ -231,12 +232,12 @@ func asyncVideoUpload(video, videoUUID string) {
 	os.Remove(video)
 
 	// Add video folder to IPFS
-	videoCID, err := addFolderToIPFS(ctx, videoFolder)
+	videoCID, err := ipfs.AddFolderToIPFS(ctx, videoFolder)
 	if err != nil {
 		log.Error().Msgf("Unable to add video folder to IPFS: %s\n", err)
-		encodingVideos.mutex.Lock()
-		encodingVideos.Videos[videoUUID] = EncodingVideo{Error: err, CurrentProgress: -1}
-		encodingVideos.mutex.Unlock()
+		EncodingVideos.mutex.Lock()
+		EncodingVideos.Videos[videoUUID] = EncodingVideo{Error: err, CurrentProgress: -1}
+		EncodingVideos.mutex.Unlock()
 		return
 	}
 	log.Info().Msgf("Video folder added to IPFS: %s\n", videoCID)
@@ -248,10 +249,10 @@ func asyncVideoUpload(video, videoUUID string) {
 	}
 
 	// Update the map with the video CID
-	encodingVideos.mutex.Lock()
+	EncodingVideos.mutex.Lock()
 	tempStruct := EncodingVideo{CID: videoCID, CurrentProgress: -1, Length: videoLength}
-	encodingVideos.Videos[videoUUID] = tempStruct
-	encodingVideos.mutex.Unlock()
+	EncodingVideos.Videos[videoUUID] = tempStruct
+	EncodingVideos.mutex.Unlock()
 
 	log.Info().Msgf("Finished transcoding %s.\n", video)
 }

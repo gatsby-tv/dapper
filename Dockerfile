@@ -1,7 +1,11 @@
-FROM golang:1.16.3 AS build
+FROM golang:1.17 AS build
 WORKDIR /dapper
 ARG BUILD
 COPY *.go go.mod go.sum ./
+COPY api ./api
+COPY docs ./docs
+COPY ipfs ./ipfs
+
 RUN go build -ldflags "-X main.CurrentCommit=$BUILD" -o dapper
 
 FROM linuxserver/ffmpeg:version-4.3-cli

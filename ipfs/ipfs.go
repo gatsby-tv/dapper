@@ -114,7 +114,7 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 	}
 
 	// There are the default ports IPFS listens on for standard requests and websockets
-	config.Addresses.Swarm = []string{"/ip4/0.0.0.0/tcp/4001", "/ip6/::/tcp/4001", "/ip4/0.0.0.0/udp/4001/quic", "/ip6/::/udp/4001/quic", "/ip4/0.0.0.0/tcp/8081/ws", "/ip6/::/tcp/8081/ws"}
+	config.Addresses.Swarm = []string{"/ip4/0.0.0.0/tcp/4001", "/ip6/::/tcp/4001", "/ip4/0.0.0.0/udp/4001/quic", "/ip6/::/udp/4001/quic", "/ip4/0.0.0.0/tcp/8085/ws", "/ip6/::/tcp/8085/ws"}
 	repo.SetConfig(config)
 
 	// Construct the node
@@ -489,7 +489,7 @@ func StartIPFS(ctx context.Context) error {
 
 			bootstrapNodes := []string{
 				// Gatsby bootstrap nodes
-				"/ip4/76.183.137.234/tcp/8081/ws/ipfs/12D3KooWC3FCg8mepBicz1pFxRyUzQR5rvrjDHRKFXr1cP2dfZmL",
+				"/dns4/staging.gatsby.sh/tcp/8081/wss/ipfs/12D3KooWC3FCg8mepBicz1pFxRyUzQR5rvrjDHRKFXr1cP2dfZmL",
 
 				// IPFS Bootstrapper nodes.
 				"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",

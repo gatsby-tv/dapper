@@ -489,7 +489,7 @@ func StartIPFS(ctx context.Context) error {
 
 			bootstrapNodes := []string{
 				// Gatsby bootstrap nodes
-				"/ip4/76.183.137.234/tcp/4001/p2p/12D3KooWA2AcE5AfBnLGPVjZwCjs7YUG7mqj5J9MsRf5KxNDt82C",
+				"/ip4/76.183.137.234/tcp/8081/ws/ipfs/12D3KooWC3FCg8mepBicz1pFxRyUzQR5rvrjDHRKFXr1cP2dfZmL",
 
 				// IPFS Bootstrapper nodes.
 				"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
